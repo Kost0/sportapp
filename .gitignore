@@ -1,0 +1,9 @@
+.env
+*.exe
+*.test
+*.out
+/tmp/
+/data/
+go.work.sum
+**/vendor/
+.idea
