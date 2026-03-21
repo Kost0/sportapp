@@ -11,4 +11,4 @@ require (
 	sportapp/shared v0.0.0
 )
 
-replace sportapp/shared => ../../shared
+replace sportapp/shared => ./../../shared
