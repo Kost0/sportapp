@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	"sportapp/shared/kafka"
 	"sportapp/map-activities/internal/store"
+	"sportapp/shared/kafka"
 
 	"go.mongodb.org/mongo-driver/bson"
 )
