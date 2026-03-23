@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	"sportapp/shared/kafka"
 	"sportapp/news-feed/internal/store"
+	"sportapp/shared/kafka"
 )
 
 type Consumer struct{ store *store.Store }

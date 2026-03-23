@@ -9,6 +9,8 @@ import (
 
 	sharedjwt "sportapp/shared/jwt"
 	"sportapp/shared/response"
+
+	"github.com/rs/cors"
 )
 
 func main() {
@@ -19,9 +21,23 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", makeHandler(jwtSecret, viewsAddr, authAddr))
 
+	c := cors.New(cors.Options{
+		// Extremely permissive CORS (dev-only posture). This allows any browser origin
+		// and reflects it back so credentials can still be used.
+		AllowOriginFunc:  func(origin string) bool { return origin != "" },
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"*"},
+		ExposedHeaders:   []string{"*"},
+		AllowCredentials: true,
+		Debug:            true,
+	})
+
+	handler := c.Handler(mux)
+
 	addr := getenv("LISTEN_ADDR", ":8080")
 	log.Printf("gateway listening on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, mux))
+
+	log.Fatal(http.ListenAndServe(addr, handler))
 }
 
 func makeHandler(jwtSecret, viewsAddr, authAddr string) http.HandlerFunc {
