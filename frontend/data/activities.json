@@ -1,0 +1,152 @@
+[
+  {
+    "id": "basketball-street-vernadskogo-1800",
+    "sport": "Баскетбол",
+    "status": "Активно",
+    "distanceText": "~ 50 м",
+    "spots": { "taken": 5, "total": 8 },
+    "startsAt": "2026-03-06T18:00:00+03:00",
+    "address": "Проспект Вернандского, д. 78",
+    "title": "Стрит 3x3 у универа",
+    "description": "Собираемся вечерком покатать в баскет с ребятами. Уже есть 2 команды по 3 человека для стрита. Нужно еще 2, приходите)",
+    "imageUrl": "https://images.unsplash.com/photo-1519861155730-0b5fbf0dd889?auto=format&fit=crop&w=1200&q=70",
+    "creator": {
+      "name": "Артур",
+      "role": "организатор",
+      "avatarUrl": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=256&q=70"
+    },
+    "participants": [
+      {
+        "id": "p-artur",
+        "name": "Артур",
+        "avatarUrl": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=256&q=70"
+      },
+      {
+        "id": "p-olga",
+        "name": "Ольга",
+        "avatarUrl": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&q=70"
+      },
+      {
+        "id": "p-sergey",
+        "name": "Сергей",
+        "avatarUrl": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&q=70"
+      }
+    ]
+  },
+  {
+    "id": "tennis-ramenki-1900",
+    "sport": "Большой теннис",
+    "status": "Активно",
+    "distanceText": "~ 2.2 км",
+    "spots": { "taken": 8, "total": 10 },
+    "startsAt": "2026-03-15T19:00:00+03:00",
+    "address": "Раменки, корт рядом с парком",
+    "title": "Парный теннис (уровень средний)",
+    "description": "Играем парный теннис, ищем еще 2 человек. Ракетки/мячи есть, главное - удобная обувь.",
+    "imageUrl": "https://images.unsplash.com/photo-1505666287594-64f29b97f8b2?auto=format&fit=crop&w=1200&q=70",
+    "creator": {
+      "name": "Олег",
+      "role": "организатор",
+      "avatarUrl": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=256&q=70"
+    },
+    "participants": [
+      {
+        "id": "p-oleg",
+        "name": "Олег",
+        "avatarUrl": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=256&q=70"
+      },
+      {
+        "id": "p-denis",
+        "name": "Денис",
+        "avatarUrl": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=256&q=70"
+      },
+      {
+        "id": "p-ira",
+        "name": "Ира",
+        "avatarUrl": "https://images.unsplash.com/photo-1524502397800-2eeaad7c3fe5?auto=format&fit=crop&w=256&q=70"
+      }
+    ]
+  },
+  {
+    "id": "run-luzhniki-0730",
+    "sport": "Бег",
+    "status": "Активно",
+    "distanceText": "~ 4.6 км",
+    "spots": { "taken": 2, "total": 6 },
+    "startsAt": "2026-03-07T07:30:00+03:00",
+    "address": "Лужники, вход со стороны набережной",
+    "title": "Утренний легкий бег 5к",
+    "description": "Пробежка в разговорном темпе, круг по набережной. После - кофе рядом.",
+    "imageUrl": "https://images.unsplash.com/photo-1549576490-b0b4831ef60a?auto=format&fit=crop&w=1200&q=70",
+    "creator": {
+      "name": "Катя",
+      "role": "организатор",
+      "avatarUrl": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&q=70"
+    },
+    "participants": [
+      {
+        "id": "p-katya",
+        "name": "Катя",
+        "avatarUrl": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=256&q=70"
+      },
+      {
+        "id": "p-alex",
+        "name": "Алекс",
+        "avatarUrl": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&q=70"
+      }
+    ]
+  },
+  {
+    "id": "football-sokolniki-2100",
+    "sport": "Футбол",
+    "status": "Мало мест",
+    "distanceText": "~ 7.1 км",
+    "spots": { "taken": 9, "total": 10 },
+    "startsAt": "2026-03-08T21:00:00+03:00",
+    "address": "Сокольники, поле №2",
+    "title": "Футбол 5x5, ищем последнего",
+    "description": "Играем 5x5, доукомплектовать одну команду. Без жести, просто поиграть.",
+    "imageUrl": "https://images.unsplash.com/photo-1521412644187-c49fa049e84d?auto=format&fit=crop&w=1200&q=70",
+    "creator": {
+      "name": "Миша",
+      "role": "организатор",
+      "avatarUrl": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=256&q=70"
+    },
+    "participants": [
+      {
+        "id": "p-misha",
+        "name": "Миша",
+        "avatarUrl": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=256&q=70"
+      }
+    ]
+  },
+  {
+    "id": "yoga-gorky-1200",
+    "sport": "Йога",
+    "status": "Активно",
+    "distanceText": "~ 1.4 км",
+    "spots": { "taken": 4, "total": 12 },
+    "startsAt": "2026-03-09T12:00:00+03:00",
+    "address": "Парк Горького, газон у пруда",
+    "title": "Йога на свежем воздухе",
+    "description": "Спокойная практика на 45 минут. Возьми коврик и воду.",
+    "imageUrl": "https://images.unsplash.com/photo-1529693662653-9d480530a697?auto=format&fit=crop&w=1200&q=70",
+    "creator": {
+      "name": "Надя",
+      "role": "организатор",
+      "avatarUrl": "https://images.unsplash.com/photo-1524502397800-2eeaad7c3fe5?auto=format&fit=crop&w=256&q=70"
+    },
+    "participants": [
+      {
+        "id": "p-nadya",
+        "name": "Надя",
+        "avatarUrl": "https://images.unsplash.com/photo-1524502397800-2eeaad7c3fe5?auto=format&fit=crop&w=256&q=70"
+      },
+      {
+        "id": "p-sasha",
+        "name": "Саша",
+        "avatarUrl": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=256&q=70"
+      }
+    ]
+  }
+]

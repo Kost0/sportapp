@@ -1,0 +1,17 @@
+export const COLORS = {
+  bg: "#FAFAFA",
+  surface: "#FFFFFF",
+  textPrimary: "#000000",
+  textSecondary: "#6B7280",
+  ink: "#29313E",
+  divider: "#D9DFE6",
+  danger: "#F05657",
+  badgeBg: "#E6F3D8",
+  badgeText: "#5B892A",
+  badgeDangerBg: "#FEE2E2",
+  badgeDangerText: "#B91C1C",
+  buttonPrimaryBg: "#29313E",
+  buttonPrimaryText: "#FFFFFF",
+  buttonSecondaryBg: "#F3F4F6",
+  buttonSecondaryText: "#6B7280",
+} as const;
