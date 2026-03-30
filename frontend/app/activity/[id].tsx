@@ -3,19 +3,19 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SportIcon } from "../../components/sport-icon";
 import { StatusBadge } from "../../components/status-badge";
 import { PrimaryButton, SecondaryButton } from "../../components/ui-buttons";
 import { COLORS } from "../../constants/colors";
 import type { ActivityDetail } from "@/lib/api/activities";
-import { getActivity, joinActivity } from "@/lib/api/activities";
+import { getActivity, joinActivity, leaveActivity } from "@/lib/api/activities";
 import { ApiError } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/auth-context";
 import { formatStartsAt } from "../../utils/date-format";
@@ -79,6 +79,12 @@ export default function ActivityDetailsScreen() {
     return true;
   }, [activity]);
 
+  const canLeave = useMemo(() => {
+    if (!activity) return false;
+    if (activity.myRole === 'PARTICIPANT') return true;
+    return false;
+  }, [activity]);
+
   const onJoin = async () => {
     if (!id || !token) return;
     setActionBusy(true);
@@ -107,9 +113,37 @@ export default function ActivityDetailsScreen() {
     }
   };
 
+  const onLeave = async () => {
+    if (!id || !token || !activity) return;
+    setActionBusy(true);
+    setError(null);
+    try {
+      await leaveActivity(token, id);
+      // Backend returns void, update state locally
+      setActivity((prev) =>
+        prev
+          ? {
+              ...prev,
+              spotsLeft: prev.spotsLeft + 1,
+              myRole: null,
+            }
+          : prev
+      );
+    } catch (e: unknown) {
+      if (e instanceof ApiError) {
+        if (e.status === 401) logout();
+        setError(`${e.code}: ${e.message}`);
+      } else {
+        setError('Leave failed');
+      }
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
   if (!activity) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
             <Pressable
@@ -141,7 +175,7 @@ export default function ActivityDetailsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
           <Pressable
@@ -217,10 +251,18 @@ export default function ActivityDetailsScreen() {
             />
           </View>
           <View style={styles.buttonCol}>
-            <SecondaryButton
-              title="Не показывать"
-              onPress={() => router.back()}
-            />
+            {canLeave ? (
+              <SecondaryButton
+                title={actionBusy ? "…" : "Покинуть"}
+                onPress={onLeave}
+                disabled={actionBusy}
+              />
+            ) : (
+              <SecondaryButton
+                title="Не показывать"
+                onPress={() => router.back()}
+              />
+            )}
           </View>
         </View>
 

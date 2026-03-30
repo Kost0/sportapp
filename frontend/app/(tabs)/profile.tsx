@@ -4,13 +4,13 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LabeledBlock } from '@/components/profile/labeled-block';
 import { ProfileCard } from '@/components/profile/profile-card';
@@ -180,7 +180,7 @@ export default function ProfileScreen() {
   const avatarVisible = Boolean(avatarUrl && /^https?:\/\//.test(avatarUrl));
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Профиль</Text>
         <View style={styles.headerIcons}>

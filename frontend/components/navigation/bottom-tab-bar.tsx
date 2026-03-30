@@ -1,6 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -46,10 +46,12 @@ export function BottomTabBar({ state, navigation }: BottomTabBarProps) {
     });
 
     if (event.defaultPrevented) return;
-    navigation.navigate(route.name as never, route.params as never);
+    // BottomTabBarProps navigation is hard to type strictly across mixed route params.
+    // Use runtime route.name/params.
+    (navigation as any).navigate(route.name, route.params);
   };
 
-  const barBottomPadding = Math.max(insets.bottom, 8);
+  const barBottomPadding = insets.bottom;
 
   return (
     <View style={[styles.outer, { paddingBottom: barBottomPadding }]} pointerEvents="box-none">
@@ -103,7 +105,7 @@ export function BottomTabBar({ state, navigation }: BottomTabBarProps) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Создать"
-          onPress={() => router.push('/modal')}
+          onPress={() => router.push('/create-activity' as Href)}
           style={({ pressed }) => [styles.plusButton, pressed ? styles.plusPressed : null]}>
           <MaterialIcons name="add" size={26} color={COLORS.surface} />
         </Pressable>
@@ -119,8 +121,8 @@ const styles = StyleSheet.create({
   panel: {
     height: 90,
     backgroundColor: 'rgba(255, 255, 255, 0.97)',
-    borderTopLeftRadius: 26,
-    borderTopRightRadius: 26,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     shadowColor: 'rgba(73, 77, 90, 0.12)',
     shadowOffset: { width: 0, height: -5 },
     shadowOpacity: 1,

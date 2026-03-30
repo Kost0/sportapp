@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-version: "3.9"
-
-=======
->>>>>>> 1b43e43 (Initial commit)
 services:
   postgres-auth:
     image: postgres:16-alpine
@@ -102,11 +97,7 @@ services:
   auth:
     build:
       context: .
-<<<<<<< HEAD
-      dockerfile: ../../sportapp/services/auth/Dockerfile
-=======
       dockerfile: services/auth/Dockerfile
->>>>>>> 1b43e43 (Initial commit)
     ports: ["8081:8081"]
     environment:
       LISTEN_ADDR: ":8081"
@@ -185,11 +176,7 @@ services:
   activity-ops:
     build:
       context: .
-<<<<<<< HEAD
-      dockerfile: ../../sportapp/services/activity-ops/Dockerfile
-=======
       dockerfile: services/activity-ops/Dockerfile
->>>>>>> 1b43e43 (Initial commit)
     ports: ["8086:8086"]
     environment:
       LISTEN_ADDR: ":8086"
@@ -243,8 +230,4 @@ volumes:
   pg_activities:
   pg_profiles:
   mongo_data:
-<<<<<<< HEAD
   avatars:
-=======
-  avatars:
->>>>>>> 1b43e43 (Initial commit)

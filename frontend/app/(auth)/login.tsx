@@ -2,13 +2,13 @@ import React, { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SelectablePill } from '@/components/profile/selectable-pill';
 import { PrimaryButton, SecondaryButton } from '@/components/ui-buttons';
@@ -52,7 +52,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>SportPoint</Text>
         <Text style={styles.headerSubtitle}>{mode === 'login' ? 'Вход' : 'Регистрация'}</Text>

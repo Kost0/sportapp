@@ -71,3 +71,28 @@ export const getActivity = async (token: string, activityId: string) => {
 export const joinActivity = async (token: string, activityId: string) => {
   return postJson<{ activityId: string }, JoinResp>('/activities/join', { activityId }, { token });
 };
+
+export const leaveActivity = async (token: string, activityId: string) => {
+  return postJson<{ activityId: string }, void>('/activities/leave', { activityId }, { token });
+};
+
+export type CreateActivityInput = {
+  title: string;
+  sport: string;
+  lat: number;
+  lon: number;
+  address: string;
+  date: string;
+  maxParticipants: number;
+  description: string;
+};
+
+export type CreateActivityResp = {
+  activityId: string;
+  status: ActivityStatus;
+  version: number;
+};
+
+export const createActivity = async (token: string, input: CreateActivityInput) => {
+  return postJson<CreateActivityInput, CreateActivityResp>('/activities/create', input, { token });
+};
