@@ -1,17 +1,23 @@
 import React from 'react';
 import { StyleSheet, Text, View, type ViewProps } from 'react-native';
 
-import { COLORS } from '@/constants/colors';
+import { COLORS, getColor, type ColorScheme } from '@/constants/colors';
+import { TEXT_STYLES } from '@/constants/typography';
+import { SPACING } from '@/constants/spacing';
 
 type Props = ViewProps & {
   label: string;
   children: React.ReactNode;
+  colorScheme?: ColorScheme;
 };
 
-export function LabeledBlock({ label, children, style, ...rest }: Props) {
+export function LabeledBlock({ label, children, style, colorScheme, ...rest }: Props) {
+  const scheme = colorScheme ?? 'light';
+  const colors = getColor(scheme);
+
   return (
     <View style={[styles.root, style]} {...rest}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[TEXT_STYLES.label, { color: colors.textSecondary }]}>{label}</Text>
       {children}
     </View>
   );
@@ -19,11 +25,6 @@ export function LabeledBlock({ label, children, style, ...rest }: Props) {
 
 const styles = StyleSheet.create({
   root: {
-    gap: 8,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
+    gap: SPACING.sm,
   },
 });

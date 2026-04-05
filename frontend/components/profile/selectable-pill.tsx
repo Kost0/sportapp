@@ -1,18 +1,22 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, type PressableProps, type StyleProp, type ViewStyle } from 'react-native';
 
-import { COLORS } from '@/constants/colors';
-
-const BORDER = '#E5E7EB';
+import { COLORS, getColor, type ColorScheme } from '@/constants/colors';
+import { TEXT_STYLES } from '@/constants/typography';
+import { RADIUS } from '@/constants/radius';
 
 type Props = Omit<PressableProps, 'children' | 'style'> & {
   label: string;
   selected: boolean;
   layout?: 'fill' | 'hug';
   style?: StyleProp<ViewStyle>;
+  colorScheme?: ColorScheme;
 };
 
-export function SelectablePill({ label, selected, layout = 'hug', style, ...rest }: Props) {
+export function SelectablePill({ label, selected, layout = 'hug', style, colorScheme, ...rest }: Props) {
+  const scheme = colorScheme ?? 'light';
+  const colors = getColor(scheme);
+
   return (
     <Pressable
       accessibilityRole="button"
@@ -20,50 +24,41 @@ export function SelectablePill({ label, selected, layout = 'hug', style, ...rest
       style={({ pressed }) => [
         styles.base,
         layout === 'fill' ? styles.fill : styles.hug,
-        selected ? styles.selected : styles.unselected,
-        pressed ? styles.pressed : null,
+        {
+          backgroundColor: selected ? colors.ink : colors.buttonSecondaryBg,
+          borderColor: selected ? 'transparent' : colors.buttonSecondaryBorder,
+        },
+        pressed && styles.pressed,
         style,
       ]}
       {...rest}>
-      <Text style={[styles.text, selected ? styles.textSelected : styles.textUnselected]}>{label}</Text>
+      <Text style={[
+        TEXT_STYLES.label,
+        {
+          color: selected ? colors.surface : colors.textPrimary,
+        },
+      ]}>{label}</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   base: {
-    height: 32,
-    borderRadius: 14,
+    height: 36,
+    borderRadius: RADIUS.md,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
   },
   fill: {
     flex: 1,
   },
   hug: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     alignSelf: 'flex-start',
   },
-  selected: {
-    backgroundColor: COLORS.ink,
-    borderWidth: 0,
-  },
-  unselected: {
-    backgroundColor: COLORS.buttonSecondaryBg,
-    borderWidth: 1,
-    borderColor: BORDER,
-  },
-  text: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  textSelected: {
-    color: COLORS.surface,
-  },
-  textUnselected: {
-    color: COLORS.ink,
-  },
   pressed: {
-    opacity: 0.92,
+    opacity: 0.88,
+    transform: [{ scale: 0.97 }],
   },
 });

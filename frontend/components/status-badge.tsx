@@ -1,15 +1,21 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { COLORS } from "../constants/colors";
+import { COLORS, getColor, type ColorScheme } from "@/constants/colors";
+import { TEXT_STYLES } from "@/constants/typography";
+import { RADIUS } from "@/constants/radius";
 
 import type { ActivityStatus } from "@/lib/api/activities";
 
 type Props = {
   status: ActivityStatus;
+  colorScheme?: ColorScheme;
 };
 
-export function StatusBadge({ status }: Props) {
+export function StatusBadge({ status, colorScheme }: Props) {
+  const scheme = colorScheme ?? 'light';
+  const colors = getColor(scheme);
+
   const label =
     status === "OPEN"
       ? "Открыто"
@@ -19,9 +25,24 @@ export function StatusBadge({ status }: Props) {
           ? "Завершено"
           : "Отменено";
   const isDanger = status === "FULL" || status === "CANCELLED";
+
   return (
-    <View style={[styles.base, isDanger ? styles.danger : styles.ok]}>
-      <Text style={[styles.text, isDanger ? styles.dangerText : styles.okText]}>
+    <View
+      style={[
+        styles.base,
+        {
+          backgroundColor: isDanger ? colors.badgeDangerBg : colors.badgeBg,
+        },
+      ]}
+    >
+      <Text
+        style={[
+          TEXT_STYLES.badge,
+          {
+            color: isDanger ? colors.badgeDangerText : colors.badgeText,
+          },
+        ]}
+      >
         {label}
       </Text>
     </View>
@@ -30,24 +51,8 @@ export function StatusBadge({ status }: Props) {
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: 10,
-    paddingHorizontal: 12,
+    borderRadius: RADIUS.sm,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-  },
-  ok: {
-    backgroundColor: COLORS.badgeBg,
-  },
-  danger: {
-    backgroundColor: COLORS.badgeDangerBg,
-  },
-  text: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  okText: {
-    color: COLORS.badgeText,
-  },
-  dangerText: {
-    color: COLORS.badgeDangerText,
   },
 });

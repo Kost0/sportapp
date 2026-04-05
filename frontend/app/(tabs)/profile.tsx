@@ -16,14 +16,13 @@ import { LabeledBlock } from '@/components/profile/labeled-block';
 import { ProfileCard } from '@/components/profile/profile-card';
 import { SelectablePill } from '@/components/profile/selectable-pill';
 import { PrimaryButton, SecondaryButton } from '@/components/ui-buttons';
-import { COLORS } from '@/constants/colors';
+import { COLORS, getColor } from '@/constants/colors';
+import { TEXT_STYLES } from '@/constants/typography';
+import { SPACING, SCREEN } from '@/constants/spacing';
+import { RADIUS } from '@/constants/radius';
 import { ApiError } from '@/lib/api/client';
 import { getProfile, updateProfile, type Profile, type ProfileGender } from '@/lib/api/profile';
 import { useAuth } from '@/lib/auth/auth-context';
-
-const BORDER = '#E5E7EB';
-const AVATAR_BG = '#E5E7EB';
-const AVATAR_BORDER = '#ECEFF2';
 
 const KNOWN_SPORTS = ['Бег', 'Футбол', 'Велосипед'] as const;
 
@@ -60,6 +59,7 @@ const pluralYears = (n: number): string => {
 
 export default function ProfileScreen() {
   const { token, logout } = useAuth();
+  const colors = getColor();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(false);
@@ -182,21 +182,21 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Профиль</Text>
+        <Text style={[TEXT_STYLES.h3, { color: colors.ink }]}>Профиль</Text>
         <View style={styles.headerIcons}>
           <Pressable onPress={load} hitSlop={10} disabled={loading || saving}>
-            <MaterialIcons name="refresh" size={20} color={COLORS.textSecondary} />
+            <MaterialIcons name="refresh" size={20} color={colors.textSecondary} />
           </Pressable>
           <Pressable onPress={logout} hitSlop={10} disabled={saving}>
-            <MaterialIcons name="logout" size={20} color={COLORS.textSecondary} />
+            <MaterialIcons name="logout" size={20} color={colors.textSecondary} />
           </Pressable>
         </View>
       </View>
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: colors.divider }]} />
 
       {error ? (
         <View style={styles.banner}>
-          <Text style={styles.bannerText}>{error}</Text>
+          <Text style={[TEXT_STYLES.bodySm, { color: colors.ink }]}>{error}</Text>
         </View>
       ) : null}
 
@@ -206,10 +206,10 @@ export default function ProfileScreen() {
             {avatarVisible ? (
               <Image source={{ uri: avatarUrl! }} style={styles.avatar} />
             ) : (
-              <View style={styles.avatarPlaceholder} />
+              <View style={[styles.avatarPlaceholder, { backgroundColor: colors.avatarPlaceholder }]} />
             )}
           </View>
-          {loading ? <ActivityIndicator color={COLORS.textSecondary} /> : null}
+          {loading ? <ActivityIndicator color={colors.textSecondary} /> : null}
         </ProfileCard>
 
         <ProfileCard style={styles.cardPadded}>
@@ -218,9 +218,9 @@ export default function ProfileScreen() {
               value={username}
               onChangeText={setUsername}
               placeholder="Имя"
-              placeholderTextColor={COLORS.textSecondary}
+              placeholderTextColor={colors.inputPlaceholder}
               editable={!saving}
-              style={styles.valueInput}
+              style={[styles.valueInput, { color: colors.ink, borderBottomColor: colors.border }]}
             />
           </LabeledBlock>
         </ProfileCard>
@@ -252,13 +252,17 @@ export default function ProfileScreen() {
               value={birthDate}
               onChangeText={setBirthDate}
               placeholder="2001-03-12"
-              placeholderTextColor={COLORS.textSecondary}
+              placeholderTextColor={colors.inputPlaceholder}
               editable={!saving}
-              style={styles.valueInput}
+              style={[styles.valueInput, { color: colors.ink, borderBottomColor: colors.border }]}
               autoCapitalize="none"
               autoCorrect={false}
             />
-            {birthSummary ? <Text style={styles.helper}>{birthSummary}</Text> : null}
+            {birthSummary ? (
+              <Text style={[TEXT_STYLES.bodySm, { color: colors.textSecondary, marginTop: SPACING.xs }]}>
+                {birthSummary}
+              </Text>
+            ) : null}
           </LabeledBlock>
         </ProfileCard>
 
@@ -293,104 +297,82 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bg,
   },
   header: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 12,
+    paddingHorizontal: SCREEN.paddingHorizontal,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.sm,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: COLORS.bg,
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.ink,
-  },
   headerIcons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING.sm,
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.divider,
-    marginHorizontal: 24,
+    marginHorizontal: SCREEN.paddingHorizontal,
   },
   banner: {
-    marginHorizontal: 20,
-    marginTop: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: 'rgba(240, 86, 87, 0.08)',
+    marginHorizontal: SCREEN.paddingHorizontal,
+    marginTop: SPACING.sm,
+    paddingHorizontal: SPACING.base,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.dangerBg,
     borderWidth: 1,
-    borderColor: 'rgba(240, 86, 87, 0.25)',
-  },
-  bannerText: {
-    color: COLORS.ink,
-    fontSize: 12,
-    fontWeight: '600',
+    borderColor: COLORS.dangerBorder,
   },
   content: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    paddingBottom: 32,
-    gap: 16,
+    paddingHorizontal: SCREEN.paddingHorizontal,
+    paddingVertical: SPACING.base,
+    paddingBottom: SCREEN.bottomPadding,
+    gap: SPACING.base,
   },
   avatarCard: {
-    padding: 16,
+    padding: SPACING.base,
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING.sm,
   },
   avatarWrap: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: AVATAR_BG,
+    width: 140,
+    height: 140,
+    borderRadius: RADIUS.full,
     borderWidth: 1,
-    borderColor: AVATAR_BORDER,
+    borderColor: COLORS.divider,
     overflow: 'hidden',
   },
   avatar: {
-    width: 160,
-    height: 160,
+    width: 140,
+    height: 140,
   },
   avatarPlaceholder: {
-    width: 160,
-    height: 160,
-    backgroundColor: AVATAR_BG,
+    width: 140,
+    height: 140,
   },
   cardPadded: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: SPACING.base,
+    paddingVertical: SPACING.md,
   },
   valueInput: {
     height: 40,
     paddingHorizontal: 0,
     paddingVertical: 0,
     borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.ink,
-  },
-  helper: {
-    marginTop: 2,
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
+    ...TEXT_STYLES.input,
   },
   row: {
     flexDirection: 'row',
-    gap: 10,
+    gap: SPACING.sm,
   },
   wrapRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: SPACING.xs,
   },
   actions: {
-    gap: 10,
-    paddingTop: 6,
+    gap: SPACING.sm,
+    paddingTop: SPACING.xs,
   },
 });

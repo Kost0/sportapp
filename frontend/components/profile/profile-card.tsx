@@ -1,15 +1,31 @@
 import React from 'react';
 import { StyleSheet, View, type ViewProps } from 'react-native';
 
-import { COLORS } from '@/constants/colors';
+import { COLORS, getColor, type ColorScheme } from '@/constants/colors';
+import { RADIUS } from '@/constants/radius';
+import { shadowCard } from '@/constants/shadows';
 
 type Props = ViewProps & {
   children: React.ReactNode;
+  colorScheme?: ColorScheme;
 };
 
-export function ProfileCard({ style, children, ...rest }: Props) {
+export function ProfileCard({ style, children, colorScheme, ...rest }: Props) {
+  const scheme = colorScheme ?? 'light';
+  const colors = getColor(scheme);
+
   return (
-    <View style={[styles.card, style]} {...rest}>
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: colors.surface,
+        },
+        shadowCard(scheme),
+        style,
+      ]}
+      {...rest}
+    >
       {children}
     </View>
   );
@@ -17,7 +33,7 @@ export function ProfileCard({ style, children, ...rest }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 20,
+    borderRadius: RADIUS.xl,
+    overflow: 'hidden',
   },
 });

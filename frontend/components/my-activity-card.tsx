@@ -1,9 +1,13 @@
 import React, { useMemo } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { COLORS } from "@/constants/colors";
+import { Image, StyleSheet, Text, View } from "react-native";
+import { COLORS, getColor, type ColorScheme } from "@/constants/colors";
+import { TEXT_STYLES } from "@/constants/typography";
+import { RADIUS } from "@/constants/radius";
+import { SPACING } from "@/constants/spacing";
 import { SportIcon } from "./sport-icon";
 import { formatStartsAt } from "@/utils/date-format";
 import type { MyActivityItem } from "@/lib/api/home";
+import { PressableCard } from "./ui/card";
 
 type Props = {
   activity: MyActivityItem;
@@ -11,6 +15,7 @@ type Props = {
   organizerAvatar?: string;
   distance?: string;
   onPress: (activityId: string) => void;
+  colorScheme?: ColorScheme;
 };
 
 export function MyActivityCard({
@@ -19,121 +24,99 @@ export function MyActivityCard({
   organizerAvatar,
   distance,
   onPress,
+  colorScheme,
 }: Props) {
+  const scheme = colorScheme ?? 'light';
+  const colors = getColor(scheme);
+
   const timeText = useMemo(
     () => formatStartsAt(activity.date).short,
     [activity.date]
   );
 
   return (
-    <Pressable
-      onPress={() => onPress(activity.activityId)}
-      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
-    >
-      <View style={styles.header}>
-        <View style={styles.titleRow}>
-          <Text numberOfLines={1} style={styles.sportTitle}>
-            {activity.sport}
-          </Text>
-          <View style={styles.iconWrap}>
-            <SportIcon sport={activity.sport} size={20} color={COLORS.surface} />
+    <PressableCard onPress={() => onPress(activity.activityId)} padding="none">
+      <View style={styles.inner}>
+        <View style={styles.header}>
+          <View style={styles.titleRow}>
+            <Text numberOfLines={1} style={[TEXT_STYLES.h3, { color: colors.textPrimary, flexShrink: 1 }]}>
+              {activity.sport}
+            </Text>
+            <View style={[styles.iconWrap, { backgroundColor: colors.ink }]}>
+              <SportIcon sport={activity.sport} size={18} color={colors.surface} />
+            </View>
           </View>
+          {distance ? (
+            <Text style={[TEXT_STYLES.labelSm, { color: colors.ink }]}>{distance}</Text>
+          ) : null}
         </View>
-        {distance ? <Text style={styles.distance}>{distance}</Text> : null}
-      </View>
 
-      <View style={styles.organizerRow}>
-        <Image
-          source={{
-            uri:
-              organizerAvatar ||
-              `https://api.dicebear.com/7.x/identicon/png?seed=${activity.activityId}`,
-          }}
-          style={styles.avatar}
-        />
-        <Text style={styles.organizerName}>{organizerName || "Организатор"}</Text>
-        <View style={styles.bullet} />
-        <Text numberOfLines={1} style={styles.timeText}>
-          {timeText}
-        </Text>
+        <View style={styles.organizerRow}>
+          <Image
+            source={{
+              uri:
+                organizerAvatar ||
+                `https://api.dicebear.com/7.x/identicon/png?seed=${activity.activityId}`,
+            }}
+            style={styles.avatar}
+          />
+          <Text numberOfLines={1} style={[TEXT_STYLES.bodySm, { color: colors.textPrimary, flexShrink: 1 }]}>
+            {organizerName || "Организатор"}
+          </Text>
+          <View style={[styles.bullet, { backgroundColor: colors.inkMuted }]} />
+          <Text numberOfLines={1} style={[TEXT_STYLES.bodySm, { color: colors.textPrimary, flexShrink: 1 }]}>
+            {timeText}
+          </Text>
+        </View>
       </View>
-    </Pressable>
+    </PressableCard>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 14,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    shadowColor: "#0C1A4B",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  pressed: {
-    opacity: 0.92,
-    transform: [{ scale: 0.996 }],
+  inner: {
+    paddingHorizontal: SPACING.base,
+    paddingVertical: SPACING.md,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 10,
+    marginBottom: SPACING.sm,
   },
   titleRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-  },
-  sportTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-    maxWidth: 180,
+    gap: SPACING.sm,
+    minWidth: 0,
+    flex: 1,
   },
   iconWrap: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: COLORS.ink,
+    width: 28,
+    height: 28,
+    borderRadius: RADIUS.full,
     alignItems: "center",
     justifyContent: "center",
-  },
-  distance: {
-    fontSize: 10,
-    fontWeight: "500",
-    color: COLORS.ink,
+    flexShrink: 0,
   },
   organizerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: SPACING.sm,
+    minWidth: 0,
   },
   avatar: {
-    width: 35,
-    height: 35,
-    borderRadius: 17.5,
-    borderWidth: 1.4,
-    borderColor: COLORS.surface,
-  },
-  organizerName: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: COLORS.textPrimary,
+    width: 32,
+    height: 32,
+    borderRadius: RADIUS.full,
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    flexShrink: 0,
   },
   bullet: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: COLORS.ink,
-  },
-  timeText: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: COLORS.textPrimary,
-    flexShrink: 1,
+    width: 3,
+    height: 3,
+    borderRadius: RADIUS.full,
+    flexShrink: 0,
   },
 });

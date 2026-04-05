@@ -5,7 +5,10 @@ import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActivityCard } from "@/components/activity-card";
-import { COLORS } from "@/constants/colors";
+import { COLORS, getColor } from "@/constants/colors";
+import { TEXT_STYLES } from "@/constants/typography";
+import { SPACING, SCREEN } from "@/constants/spacing";
+import { RADIUS } from "@/constants/radius";
 import type { ActivityListItem } from "@/lib/api/activities";
 import { listActivities } from "@/lib/api/activities";
 import { ApiError } from "@/lib/api/client";
@@ -17,6 +20,7 @@ export default function ActivitiesScreen() {
   const [items, setItems] = useState<ActivityListItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const colors = getColor();
 
   const canLoad = useMemo(() => Boolean(token), [token]);
 
@@ -54,20 +58,20 @@ export default function ActivitiesScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Искать активность</Text>
+        <Text style={[TEXT_STYLES.h3, { color: colors.ink }]}>Искать активность</Text>
         <View style={styles.headerIcons}>
           <Pressable hitSlop={10}>
-            <MaterialIcons name="search" size={20} color={COLORS.textSecondary} />
+            <MaterialIcons name="search" size={20} color={colors.textSecondary} />
           </Pressable>
           <Pressable hitSlop={10}>
-            <MaterialIcons name="more-vert" size={20} color={COLORS.textSecondary} />
+            <MaterialIcons name="more-vert" size={20} color={colors.textSecondary} />
           </Pressable>
         </View>
       </View>
 
       {error ? (
         <View style={styles.banner}>
-          <Text style={styles.bannerText}>{error}</Text>
+          <Text style={[TEXT_STYLES.bodySm, { color: colors.textPrimary }]}>{error}</Text>
         </View>
       ) : null}
 
@@ -78,15 +82,15 @@ export default function ActivitiesScreen() {
         ListHeaderComponent={
           <>
             <View style={styles.mapPlaceholder}>
-              <MaterialIcons name="map" size={48} color={COLORS.textSecondary} />
-              <Text style={styles.mapPlaceholderText}>Карта временно недоступна</Text>
+              <MaterialIcons name="map" size={48} color={colors.textSecondary} />
+              <Text style={[TEXT_STYLES.label, { color: colors.textSecondary }]}>Карта временно недоступна</Text>
             </View>
-            <Text style={styles.sectionTitle}>
+            <Text style={[TEXT_STYLES.h3, styles.sectionTitle]}>
               {busy ? 'Загружаю…' : canLoad ? 'Ближайшие активности' : 'Требуется вход'}
             </Text>
           </>
         }
-        ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+        ItemSeparatorComponent={() => <View style={{ height: SCREEN.cardGap }} />}
         renderItem={({ item }) => (
           <ActivityCard
             activity={item}
@@ -106,61 +110,43 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.bg,
   },
   header: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 16,
+    paddingHorizontal: SCREEN.paddingHorizontal,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.base,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.ink,
-  },
   headerIcons: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: SPACING.sm,
   },
   banner: {
-    marginHorizontal: 20,
-    marginBottom: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 107, 107, 0.08)',
+    marginHorizontal: SCREEN.paddingHorizontal,
+    marginBottom: SPACING.sm,
+    paddingHorizontal: SPACING.base,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.dangerBg,
     borderWidth: 1,
-    borderColor: 'rgba(255, 107, 107, 0.25)',
-  },
-  bannerText: {
-    color: COLORS.textPrimary,
-    fontSize: 12,
-    fontWeight: "600",
+    borderColor: COLORS.dangerBorder,
   },
   mapPlaceholder: {
-    height: 240,
-    borderRadius: 20,
+    height: 200,
+    borderRadius: RADIUS.xl,
     backgroundColor: COLORS.divider,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
-    gap: 8,
-  },
-  mapPlaceholderText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
+    marginBottom: SPACING.base,
+    gap: SPACING.sm,
   },
   listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingHorizontal: SCREEN.paddingHorizontal,
+    paddingBottom: SCREEN.bottomPadding,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    paddingHorizontal: 4,
-    paddingBottom: 10,
+    paddingHorizontal: SPACING.xs,
+    paddingBottom: SPACING.sm,
   },
 });

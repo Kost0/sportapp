@@ -13,7 +13,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MyActivityCard } from "@/components/my-activity-card";
 import { SportCategoryCard } from "@/components/sport-category-card";
-import { COLORS } from "@/constants/colors";
+import { COLORS, getColor } from "@/constants/colors";
+import { TEXT_STYLES } from "@/constants/typography";
+import { SPACING, SCREEN } from "@/constants/spacing";
+import { RADIUS } from "@/constants/radius";
 import { getHomeData, type HomeData, type MyActivityItem } from "@/lib/api/home";
 import { ApiError } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -41,6 +44,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<TimeFilter>("today");
+  const colors = getColor();
 
   useEffect(() => {
     if (!token) return;
@@ -110,7 +114,6 @@ export default function HomeScreen() {
     if (categoryKey === "news") {
       // Navigate to news tab or screen
     } else {
-      // Navigate to activities search with sport filter
       router.push("/activities");
     }
   };
@@ -126,16 +129,6 @@ export default function HomeScreen() {
   const handleActivityPress = (activityId: string) => {
     router.push({ pathname: "/activity/[id]", params: { id: activityId } } as any);
   };
-
-  const renderActivity = ({ item }: { item: MyActivityItem }) => (
-    <MyActivityCard
-      activity={item}
-      organizerName={homeData?.user.username}
-      organizerAvatar={homeData?.user.avatarUrl}
-      distance="~ 1.3 км"
-      onPress={handleActivityPress}
-    />
-  );
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
@@ -156,17 +149,17 @@ export default function HomeScreen() {
               style={styles.userAvatar}
             />
             <View>
-              <Text style={styles.greeting}>Привет,</Text>
-              <Text style={styles.username}>
+              <Text style={[TEXT_STYLES.body, { color: colors.textSecondary }]}>Привет,</Text>
+              <Text style={[TEXT_STYLES.h3, { color: colors.textPrimary }]}>
                 {homeData?.user.username || "Пользователь"}
               </Text>
             </View>
           </Pressable>
-          <Pressable onPress={handleNotificationPress} hitSlop={10}>
+          <Pressable onPress={handleNotificationPress} hitSlop={12} style={styles.notificationBtn}>
             <MaterialIcons
               name="notifications-none"
-              size={28}
-              color={COLORS.textPrimary}
+              size={26}
+              color={colors.textPrimary}
             />
           </Pressable>
         </View>
@@ -174,12 +167,12 @@ export default function HomeScreen() {
         {/* Error Banner */}
         {error ? (
           <View style={styles.banner}>
-            <Text style={styles.bannerText}>{error}</Text>
+            <Text style={[TEXT_STYLES.bodySm, { color: colors.textPrimary }]}>{error}</Text>
           </View>
         ) : null}
 
         {/* Question Section */}
-        <Text style={styles.questionText}>Чем займешься сегодня?</Text>
+        <Text style={[TEXT_STYLES.h3, styles.questionText]}>Чем займешься сегодня?</Text>
 
         {/* Sport Categories */}
         <ScrollView
@@ -194,8 +187,8 @@ export default function HomeScreen() {
               icon={
                 <MaterialIcons
                   name={category.icon as any}
-                  size={32}
-                  color={COLORS.ink}
+                  size={28}
+                  color={colors.ink}
                 />
               }
               label={category.label}
@@ -205,7 +198,7 @@ export default function HomeScreen() {
         </ScrollView>
 
         {/* My Activities Section */}
-        <Text style={styles.sectionTitle}>Мои активности</Text>
+        <Text style={[TEXT_STYLES.h3, styles.sectionTitle]}>Мои активности</Text>
 
         {/* Time Filters */}
         <ScrollView
@@ -225,6 +218,7 @@ export default function HomeScreen() {
             >
               <Text
                 style={[
+                  TEXT_STYLES.label,
                   styles.filterText,
                   activeFilter === filter.key && styles.filterTextActive,
                 ]}
@@ -237,21 +231,27 @@ export default function HomeScreen() {
 
         {/* Activities List */}
         {loading ? (
-          <Text style={styles.loadingText}>Загрузка...</Text>
+          <Text style={[TEXT_STYLES.body, styles.loadingText]}>Загрузка...</Text>
         ) : filteredActivities.length > 0 ? (
           <View style={styles.activitiesList}>
             {filteredActivities.map((activity, index) => (
               <View key={activity.activityId}>
-                {renderActivity({ item: activity })}
+                <MyActivityCard
+                  activity={activity}
+                  organizerName={homeData?.user.username}
+                  organizerAvatar={homeData?.user.avatarUrl}
+                  distance="~ 1.3 км"
+                  onPress={handleActivityPress}
+                />
                 {index < filteredActivities.length - 1 && (
-                  <View style={{ height: 12 }} />
+                  <View style={{ height: SCREEN.cardGap }} />
                 )}
               </View>
             ))}
           </View>
         ) : (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyText}>
+            <Text style={[TEXT_STYLES.body, styles.emptyText]}>
               Нет активностей для выбранного фильтра
             </Text>
           </View>
@@ -270,84 +270,66 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingBottom: 32,
+    paddingBottom: SCREEN.bottomPadding,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 20,
+    paddingHorizontal: SCREEN.paddingHorizontal,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.xl,
   },
   userInfo: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: SPACING.sm,
   },
   userAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 52,
+    height: 52,
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.divider,
   },
-  greeting: {
-    fontSize: 14,
-    fontWeight: "400",
-    color: COLORS.textSecondary,
-  },
-  username: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
+  notificationBtn: {
+    padding: 4,
   },
   banner: {
-    marginHorizontal: 24,
-    marginBottom: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: "rgba(255, 107, 107, 0.08)",
+    marginHorizontal: SCREEN.paddingHorizontal,
+    marginBottom: SPACING.base,
+    paddingHorizontal: SPACING.base,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.dangerBg,
     borderWidth: 1,
-    borderColor: "rgba(255, 107, 107, 0.25)",
-  },
-  bannerText: {
-    color: COLORS.textPrimary,
-    fontSize: 12,
-    fontWeight: "600",
+    borderColor: COLORS.dangerBorder,
   },
   questionText: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    paddingHorizontal: 24,
-    marginBottom: 16,
+    paddingHorizontal: SCREEN.paddingHorizontal,
+    marginBottom: SPACING.base,
   },
   categoriesScroll: {
-    marginBottom: 24,
+    marginBottom: SPACING.xl,
   },
   categoriesContent: {
-    paddingHorizontal: 24,
-    gap: 12,
+    paddingHorizontal: SCREEN.paddingHorizontal,
+    gap: SPACING.sm,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    paddingHorizontal: 24,
-    marginBottom: 12,
+    paddingHorizontal: SCREEN.paddingHorizontal,
+    marginBottom: SPACING.sm,
   },
   filtersScroll: {
-    marginBottom: 16,
+    marginBottom: SPACING.base,
   },
   filtersContent: {
-    paddingHorizontal: 24,
-    gap: 8,
+    paddingHorizontal: SCREEN.paddingHorizontal,
+    gap: SPACING.sm,
   },
   filterPill: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
+    paddingHorizontal: SPACING.base,
+    paddingVertical: SPACING.sm,
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.surface,
     borderWidth: 1,
     borderColor: COLORS.divider,
@@ -357,33 +339,26 @@ const styles = StyleSheet.create({
     borderColor: COLORS.ink,
   },
   filterText: {
-    fontSize: 14,
-    fontWeight: "500",
     color: COLORS.textSecondary,
   },
   filterTextActive: {
     color: COLORS.surface,
-    fontWeight: "600",
   },
   activitiesList: {
-    paddingHorizontal: 24,
+    paddingHorizontal: SCREEN.paddingHorizontal,
   },
   loadingText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: COLORS.textSecondary,
     textAlign: "center",
-    paddingVertical: 32,
+    paddingVertical: SPACING['2xl'],
+    color: COLORS.textSecondary,
   },
   emptyState: {
-    paddingVertical: 48,
-    paddingHorizontal: 24,
+    paddingVertical: SPACING['3xl'],
+    paddingHorizontal: SCREEN.paddingHorizontal,
     alignItems: "center",
   },
   emptyText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: COLORS.textSecondary,
     textAlign: "center",
+    color: COLORS.textSecondary,
   },
 });

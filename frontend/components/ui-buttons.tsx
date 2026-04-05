@@ -7,7 +7,9 @@ import {
   ViewStyle,
 } from "react-native";
 
-import { COLORS } from "../constants/colors";
+import { COLORS, getColor, type ColorScheme } from "@/constants/colors";
+import { TEXT_STYLES } from "@/constants/typography";
+import { RADIUS } from "@/constants/radius";
 
 type ButtonProps = {
   title: string;
@@ -15,6 +17,7 @@ type ButtonProps = {
   disabled?: boolean;
   loading?: boolean;
   style?: ViewStyle;
+  colorScheme?: ColorScheme;
 };
 
 export function PrimaryButton({
@@ -23,7 +26,10 @@ export function PrimaryButton({
   disabled,
   loading,
   style,
+  colorScheme,
 }: ButtonProps) {
+  const scheme = colorScheme ?? 'light';
+  const colors = getColor(scheme);
   const isDisabled = Boolean(disabled || loading);
 
   return (
@@ -33,15 +39,17 @@ export function PrimaryButton({
       style={({ pressed }) => [
         styles.base,
         styles.primary,
+        {
+          backgroundColor: isDisabled ? colors.inkMuted : colors.buttonPrimaryBg,
+        },
         pressed && !isDisabled ? styles.pressed : null,
-        isDisabled ? styles.disabled : null,
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={COLORS.buttonPrimaryText} />
+        <ActivityIndicator color={colors.buttonPrimaryText} />
       ) : (
-        <Text style={[styles.title, styles.primaryTitle]}>{title}</Text>
+        <Text style={[TEXT_STYLES.buttonPrimary, { color: colors.buttonPrimaryText }]}>{title}</Text>
       )}
     </Pressable>
   );
@@ -53,7 +61,10 @@ export function SecondaryButton({
   disabled,
   loading,
   style,
+  colorScheme,
 }: ButtonProps) {
+  const scheme = colorScheme ?? 'light';
+  const colors = getColor(scheme);
   const isDisabled = Boolean(disabled || loading);
 
   return (
@@ -63,15 +74,18 @@ export function SecondaryButton({
       style={({ pressed }) => [
         styles.base,
         styles.secondary,
+        {
+          backgroundColor: isDisabled ? colors.inkLight : colors.buttonSecondaryBg,
+          borderColor: colors.buttonSecondaryBorder,
+        },
         pressed && !isDisabled ? styles.pressed : null,
-        isDisabled ? styles.disabled : null,
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={COLORS.buttonSecondaryText} />
+        <ActivityIndicator color={colors.buttonSecondaryText} />
       ) : (
-        <Text style={[styles.title, styles.secondaryTitle]}>{title}</Text>
+        <Text style={[TEXT_STYLES.buttonSecondary, { color: colors.buttonSecondaryText }]}>{title}</Text>
       )}
     </Pressable>
   );
@@ -80,35 +94,22 @@ export function SecondaryButton({
 const styles = StyleSheet.create({
   base: {
     alignItems: "center",
-    borderRadius: 14,
+    borderRadius: RADIUS.md,
     justifyContent: "center",
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   primary: {
-    backgroundColor: COLORS.buttonPrimaryBg,
-    padding: 17,
+    paddingVertical: 14,
     width: "100%",
+    borderWidth: 0,
   },
   secondary: {
-    backgroundColor: COLORS.buttonSecondaryBg,
-    padding: 9,
+    paddingVertical: 12,
     width: "100%",
   },
-  title: {
-    fontSize: 12,
-    fontWeight: "600",
-    letterSpacing: 0.2,
-  },
-  primaryTitle: {
-    color: COLORS.buttonPrimaryText,
-  },
-  secondaryTitle: {
-    color: COLORS.buttonSecondaryText,
-  },
   pressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.99 }],
-  },
-  disabled: {
-    opacity: 0.6,
+    opacity: 0.88,
+    transform: [{ scale: 0.98 }],
   },
 });

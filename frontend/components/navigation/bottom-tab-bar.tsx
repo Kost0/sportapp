@@ -5,7 +5,11 @@ import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { COLORS } from '@/constants/colors';
+import { COLORS, getColor } from '@/constants/colors';
+import { TEXT_STYLES } from '@/constants/typography';
+import { RADIUS } from '@/constants/radius';
+import { SPACING } from '@/constants/spacing';
+import { shadowTabBar, shadowFab } from '@/constants/shadows';
 
 type TabId = 'index' | 'activities' | 'map' | 'profile';
 
@@ -46,16 +50,15 @@ export function BottomTabBar({ state, navigation }: BottomTabBarProps) {
     });
 
     if (event.defaultPrevented) return;
-    // BottomTabBarProps navigation is hard to type strictly across mixed route params.
-    // Use runtime route.name/params.
     (navigation as any).navigate(route.name, route.params);
   };
 
-  const barBottomPadding = insets.bottom;
+  // Use safe area bottom inset, with a minimum of 8px for visual breathing room
+  const barBottomPadding = Math.max(insets.bottom, 8);
 
   return (
     <View style={[styles.outer, { paddingBottom: barBottomPadding }]} pointerEvents="box-none">
-      <View style={styles.panel}>
+      <View style={[styles.panel, shadowTabBar()]}>
         <View style={styles.row}>
           {TABS.slice(0, 2).map((t) => {
             const selected = activeName === t.id;
@@ -65,13 +68,15 @@ export function BottomTabBar({ state, navigation }: BottomTabBarProps) {
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
                 onPress={() => onTabPress(t.id)}
-                style={({ pressed }) => [styles.tab, pressed ? styles.pressed : null]}>
-                <MaterialIcons
-                  name={t.icon}
-                  size={20}
-                  color={selected ? COLORS.ink : COLORS.textSecondary}
-                />
-                <Text style={[styles.label, selected ? styles.labelActive : styles.labelInactive]}>
+                style={({ pressed }) => [styles.tab, pressed && styles.pressed]}>
+                <View style={[styles.iconCircle, selected && styles.iconCircleActive]}>
+                  <MaterialIcons
+                    name={t.icon}
+                    size={20}
+                    color={selected ? getColor().tabIconActive : getColor().tabIconInactive}
+                  />
+                </View>
+                <Text style={[TEXT_STYLES.tabLabel, selected ? styles.labelActive : styles.labelInactive]}>
                   {t.label}
                 </Text>
               </Pressable>
@@ -88,13 +93,15 @@ export function BottomTabBar({ state, navigation }: BottomTabBarProps) {
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
                 onPress={() => onTabPress(t.id)}
-                style={({ pressed }) => [styles.tab, pressed ? styles.pressed : null]}>
-                <MaterialIcons
-                  name={t.icon}
-                  size={20}
-                  color={selected ? COLORS.ink : COLORS.textSecondary}
-                />
-                <Text style={[styles.label, selected ? styles.labelActive : styles.labelInactive]}>
+                style={({ pressed }) => [styles.tab, pressed && styles.pressed]}>
+                <View style={[styles.iconCircle, selected && styles.iconCircleActive]}>
+                  <MaterialIcons
+                    name={t.icon}
+                    size={20}
+                    color={selected ? getColor().tabIconActive : getColor().tabIconInactive}
+                  />
+                </View>
+                <Text style={[TEXT_STYLES.tabLabel, selected ? styles.labelActive : styles.labelInactive]}>
                   {t.label}
                 </Text>
               </Pressable>
@@ -106,8 +113,8 @@ export function BottomTabBar({ state, navigation }: BottomTabBarProps) {
           accessibilityRole="button"
           accessibilityLabel="Создать"
           onPress={() => router.push('/create-activity' as Href)}
-          style={({ pressed }) => [styles.plusButton, pressed ? styles.plusPressed : null]}>
-          <MaterialIcons name="add" size={26} color={COLORS.surface} />
+          style={({ pressed }) => [styles.plusButton, shadowFab(), pressed && styles.plusPressed]}>
+          <MaterialIcons name="add" size={28} color="#FFFFFF" />
         </Pressable>
       </View>
     </View>
@@ -119,42 +126,42 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   panel: {
-    height: 90,
-    backgroundColor: 'rgba(255, 255, 255, 0.97)',
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-    shadowColor: 'rgba(73, 77, 90, 0.12)',
-    shadowOffset: { width: 0, height: -5 },
-    shadowOpacity: 1,
-    shadowRadius: 40,
-    elevation: 12,
+    height: 88,
+    backgroundColor: getColor().tabBarBg,
+    borderTopWidth: 0.5,
+    borderTopColor: getColor().tabBarBorder,
   },
   row: {
-    height: 70,
+    height: 64,
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 18,
-    paddingBottom: 10,
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xl,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 3,
-    height: 40,
+    justifyContent: 'center',
+    gap: 4,
+    height: 52,
   },
   pressed: {
-    opacity: 0.92,
+    opacity: 0.85,
   },
-  label: {
-    fontSize: 9,
-    fontWeight: '600',
+  iconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: RADIUS.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconCircleActive: {
+    backgroundColor: 'rgba(41, 49, 62, 0.08)',
   },
   labelActive: {
-    color: COLORS.ink,
+    color: getColor().tabIconActive,
   },
   labelInactive: {
-    color: COLORS.textSecondary,
+    color: getColor().tabIconInactive,
   },
   centerSlot: {
     flex: 1,
@@ -162,24 +169,19 @@ const styles = StyleSheet.create({
   plusButton: {
     position: 'absolute',
     left: '50%',
-    top: 0,
-    marginLeft: -35,
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    top: -18,
+    marginLeft: -32,
+    width: 64,
+    height: 64,
+    borderRadius: RADIUS.full,
     backgroundColor: COLORS.ink,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
     borderColor: COLORS.surface,
-    shadowColor: 'rgba(41, 49, 62, 0.18)',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 1,
-    shadowRadius: 20,
-    elevation: 16,
   },
   plusPressed: {
-    opacity: 0.94,
-    transform: [{ scale: 0.99 }],
+    opacity: 0.9,
+    transform: [{ scale: 0.96 }],
   },
 });
