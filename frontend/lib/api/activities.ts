@@ -12,6 +12,7 @@ export type ActivityListItem = {
   status: ActivityStatus;
   version: number;
   organizerId: string;
+  imageUrl?: string;
 };
 
 export type ActivitiesListResp = {
@@ -50,15 +51,24 @@ export type JoinResp = {
   activityVersion: number;
 };
 
-export const listActivities = async (token: string, limit = 20, offset = 0) => {
+export const listActivities = async (
+  token: string,
+  limit = 20,
+  offset = 0,
+  filters: { sport?: string; date?: string; status?: string; search?: string } = {}
+) => {
   return postJson<
-    { sport?: string; date?: string; status?: string; limit: number; offset: number },
+    { sport?: string; date?: string; status?: string; limit: number; offset: number; search?: string },
     ActivitiesListResp
   >(
     '/activities/list',
     {
       limit,
       offset,
+      sport: filters.sport,
+      date: filters.date,
+      status: filters.status,
+      search: filters.search,
     },
     { token }
   );

@@ -1,8 +1,10 @@
 import { useRouter, type Href } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import React from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 
 import { CreateActivityHeader } from '@/components/create-activity/header';
 import { PrimaryButton, SecondaryButton } from '@/components/ui-buttons';
@@ -23,6 +26,19 @@ export default function DetailsScreen() {
   const handleNext = () => {
     if (data.title.trim()) {
       router.push('/create-activity/datetime' as Href);
+    }
+  };
+
+  const handleImagePick = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      updateData({ imageUri: result.assets[0].uri });
     }
   };
 
@@ -78,6 +94,19 @@ export default function DetailsScreen() {
           <View style={styles.sportBadge}>
             <Text style={styles.sportBadgeLabel}>Вид спорта:</Text>
             <Text style={styles.sportBadgeValue}>{data.sport}</Text>
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={styles.label}>Изображение</Text>
+            <Pressable onPress={handleImagePick} style={styles.imagePickerContainer}>
+              {data.imageUri ? (
+                <Image source={{ uri: data.imageUri }} style={styles.previewImage} />
+              ) : (
+                <View style={styles.imagePickerPlaceholder}>
+                  <Text style={styles.imagePickerText}>+ Добавить изображение</Text>
+                </View>
+              )}
+            </Pressable>
           </View>
         </ScrollView>
 
@@ -175,5 +204,28 @@ const styles = StyleSheet.create({
   },
   nextButton: {
     flex: 2,
+  },
+  imagePickerContainer: {
+    width: '100%',
+    height: 180,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.divider,
+    borderStyle: 'dashed',
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  imagePickerPlaceholder: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.surface,
+  },
+  imagePickerText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
   },
 });

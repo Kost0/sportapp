@@ -1,10 +1,10 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,12 +18,13 @@ import { LabeledBlock } from '@/components/profile/labeled-block';
 import { ProfileCard } from '@/components/profile/profile-card';
 import { SelectablePill } from '@/components/profile/selectable-pill';
 import { PrimaryButton, SecondaryButton } from '@/components/ui-buttons';
+import { DatePickerInput } from '@/components/ui/date-picker';
 import { COLORS, getColor } from '@/constants/colors';
 import { TEXT_STYLES } from '@/constants/typography';
 import { SPACING, SCREEN } from '@/constants/spacing';
 import { RADIUS } from '@/constants/radius';
 import { ApiError } from '@/lib/api/client';
-import { getProfile, updateProfile, type Profile, type ProfileGender } from '@/lib/api/profile';
+import { getProfile, updateProfile, uploadAvatar, type Profile, type ProfileGender } from '@/lib/api/profile';
 import { useAuth } from '@/lib/auth/auth-context';
 
 const KNOWN_SPORTS = ['Бег', 'Футбол', 'Велосипед'] as const;
@@ -72,10 +73,6 @@ export default function ProfileScreen() {
   const [gender, setGender] = useState<ProfileGender>('');
   const [birthDate, setBirthDate] = useState('');
   const [favoriteSports, setFavoriteSports] = useState<string[]>([]);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-
-  // For simple date picker (using modal with date options)
-  const [tempDate, setTempDate] = useState<Date>(new Date());
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -196,6 +193,36 @@ export default function ProfileScreen() {
   const avatarUrl = profile?.avatarUrl;
   const avatarVisible = Boolean(avatarUrl && /^https?:\/\//.test(avatarUrl));
 
+  const handleAvatarChange = useCallback(async () => {
+    if (!token) return;
+    
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    
+    if (result.canceled || !result.assets?.[0]?.uri) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await uploadAvatar(token, result.assets[0].uri);
+      await load();
+    } catch (e: unknown) {
+      if (e instanceof ApiError) {
+        if (e.status === 401) logout();
+        setError(`${e.code}: ${e.message}`);
+      } else {
+        setError('Failed to upload avatar');
+      }
+    } finally {
+      setSaving(false);
+    }
+  }, [token, load, logout]);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
@@ -219,14 +246,19 @@ export default function ProfileScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <ProfileCard style={styles.avatarCard}>
-          <View style={styles.avatarWrap}>
-            {avatarVisible ? (
-              <Image source={{ uri: avatarUrl! }} style={styles.avatar} />
-            ) : (
-              <View style={[styles.avatarPlaceholder, { backgroundColor: colors.avatarPlaceholder }]} />
-            )}
-          </View>
-          {loading ? <ActivityIndicator color={colors.textSecondary} /> : null}
+          <Pressable onPress={handleAvatarChange} style={styles.avatarPressable}>
+            <View style={styles.avatarWrap}>
+              {avatarVisible ? (
+                <Image source={{ uri: avatarUrl! }} style={styles.avatar} />
+              ) : (
+                <View style={[styles.avatarPlaceholder, { backgroundColor: colors.avatarPlaceholder }]} />
+              )}
+            </View>
+            <View style={styles.editAvatarOverlay}>
+              <MaterialIcons name="edit" size={20} color={colors.textInverse} />
+            </View>
+          </Pressable>
+          {loading || saving ? <ActivityIndicator color={colors.textSecondary} /> : null}
         </ProfileCard>
 
         <ProfileCard style={styles.cardPadded}>
@@ -265,80 +297,13 @@ export default function ProfileScreen() {
 
         <ProfileCard style={styles.cardPadded}>
           <LabeledBlock label="Возраст / Дата рождения">
-            <Pressable 
-              style={[styles.dateInput, { borderBottomColor: colors.border }]}
-              onPress={() => setShowDatePicker(true)}
-              disabled={saving}
-            >
-              {birthDate ? (
-                <Text style={[styles.dateText, { color: colors.ink }]}>
-                  {birthSummary}
-                </Text>
-              ) : (
-                <Text style={[styles.dateText, { color: colors.inputPlaceholder }]}>
-                  Выберите дату рождения
-                </Text>
-              )}
-              <MaterialIcons name="calendar-today" size={20} color={colors.textSecondary} />
-            </Pressable>
+            <DatePickerInput
+              value={birthDate}
+              onChange={setBirthDate}
+              placeholder="Выберите дату рождения"
+            />
           </LabeledBlock>
         </ProfileCard>
-
-        {/* Simple Date Picker Modal */}
-        <Modal
-          visible={showDatePicker}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowDatePicker(false)}
-        >
-          <Pressable 
-            style={styles.modalOverlay}
-            onPress={() => setShowDatePicker(false)}
-          >
-            <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
-              <Text style={styles.modalTitle}>Дата рождения</Text>
-              <ScrollView style={styles.dateList} showsVerticalScrollIndicator={false}>
-                {Array.from({ length: 100 }, (_, i) => {
-                  const year = new Date().getFullYear() - i;
-                  return (
-                    <View key={year} style={styles.yearSection}>
-                      <Text style={styles.yearLabel}>{year}</Text>
-                      <View style={styles.monthsRow}>
-                        {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(month => (
-                          <Pressable
-                            key={month}
-                            style={[
-                              styles.dayButton,
-                              birthDate === `${year}-${month}-01` && styles.dayButtonSelected
-                            ]}
-                            onPress={() => {
-                              const day = month === '02' ? '28' : '15';
-                              setBirthDate(`${year}-${month}-${day}`);
-                              setShowDatePicker(false);
-                            }}
-                          >
-                            <Text style={[
-                              styles.dayButtonText,
-                              birthDate === `${year}-${month}-01` && styles.dayButtonTextSelected
-                            ]}>
-                              {['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'][parseInt(month) - 1]}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
-                    </View>
-                  );
-                })}
-              </ScrollView>
-              <View style={styles.modalButtons}>
-                <SecondaryButton 
-                  title="Отмена" 
-                  onPress={() => setShowDatePicker(false)} 
-                />
-              </View>
-            </View>
-          </Pressable>
-        </Modal>
 
         <ProfileCard style={styles.cardPadded}>
           <LabeledBlock label="Любимые активности">
@@ -409,6 +374,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.sm,
   },
+  avatarPressable: {
+    alignItems: 'center',
+  },
   avatarWrap: {
     width: 140,
     height: 140,
@@ -416,6 +384,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.divider,
     overflow: 'hidden',
+  },
+  editAvatarOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 36,
+    height: 36,
+    borderRadius: RADIUS.full,
+    backgroundColor: COLORS.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   avatar: {
     width: 140,
@@ -448,72 +427,5 @@ const styles = StyleSheet.create({
   actions: {
     gap: SPACING.sm,
     paddingTop: SPACING.xs,
-  },
-  dateInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    height: 40,
-    borderBottomWidth: 1,
-  },
-  dateText: {
-    fontSize: 16,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.base,
-  },
-  modalContent: {
-    backgroundColor: COLORS.surface,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.base,
-    width: '100%',
-    maxHeight: '80%',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-    textAlign: 'center',
-    marginBottom: SPACING.base,
-  },
-  dateList: {
-    maxHeight: 400,
-  },
-  yearSection: {
-    marginBottom: SPACING.base,
-  },
-  yearLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
-  },
-  monthsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.xs,
-  },
-  dayButton: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.divider,
-  },
-  dayButtonSelected: {
-    backgroundColor: COLORS.ink,
-  },
-  dayButtonText: {
-    fontSize: 12,
-    color: COLORS.textPrimary,
-  },
-  dayButtonTextSelected: {
-    color: COLORS.surface,
-  },
-  modalButtons: {
-    marginTop: SPACING.base,
   },
 });

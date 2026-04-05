@@ -65,3 +65,46 @@ export const postJson = async <TReq, TRes>(
 
   throw new ApiError(env.error.message, env.error.code, res.status);
 };
+
+export const fetchFormData = async <TRes>(
+  path: string,
+  fileUri: string,
+  opts: PostOptions = {}
+): Promise<TRes> => {
+  const baseUrl = getApiBaseUrl();
+  const url = `${baseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+
+  const formData = new FormData();
+  
+  // Get the file name from URI
+  const filename = fileUri.split('/').pop() || 'avatar.jpg';
+  const fileType = filename.endsWith('.png') ? 'image/png' : 'image/jpeg';
+  
+  formData.append('file', {
+    uri: fileUri,
+    name: filename,
+    type: fileType,
+  } as any);
+
+  const headers: Record<string, string> = {};
+  if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: formData,
+    signal: opts.signal,
+  });
+
+  let json: unknown = null;
+  try {
+    json = await res.json();
+  } catch {
+    // ignore
+  }
+
+  const env = parseEnvelope<TRes>(json);
+  if (env.ok) return env.data;
+
+  throw new ApiError(env.error.message, env.error.code, res.status);
+};

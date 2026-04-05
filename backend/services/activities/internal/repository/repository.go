@@ -32,6 +32,7 @@ func Migrate(db *sql.DB) error {
 		max_participants  SMALLINT     NOT NULL CHECK (max_participants BETWEEN 2 AND 1000),
 		spots_left        SMALLINT     NOT NULL CHECK (spots_left >= 0),
 		description       TEXT,
+		image_url         VARCHAR(2048),
 		status            VARCHAR(20)  NOT NULL DEFAULT 'OPEN'
 		                      CHECK (status IN ('OPEN','FULL','COMPLETED','CANCELLED')),
 		version           BIGINT       NOT NULL DEFAULT 1,
@@ -98,6 +99,7 @@ type Activity struct {
 	Description     sql.NullString
 	Status          string
 	Version         int64
+	ImageURL        sql.NullString
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
@@ -164,6 +166,7 @@ type ListFilter struct {
 	Sport  string
 	Date   string
 	Status string
+	Search string
 	Limit  int
 	Offset int
 }
@@ -171,14 +174,16 @@ type ListFilter struct {
 func (r *Repository) List(ctx context.Context, f ListFilter) ([]*Activity, int, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT activity_id,organizer_id,title,sport,lat,lon,address,date,
-		  max_participants,spots_left,description,status,version,created_at,updated_at
+		  max_participants,spots_left,description,status,version,image_url,created_at,updated_at
 		FROM activities
 		WHERE (NULLIF($1,'') IS NULL OR sport = $1)
 		  AND (NULLIF($2,'') IS NULL OR status = $2)
 		  AND (NULLIF($3,'') IS NULL OR date::date = ($3)::date)
+		  AND (NULLIF($6,'') IS NULL OR title ILIKE '%' || $6 || '%' OR address ILIKE '%' || $6 || '%')
+		  AND date > now() - interval '24 hours'
 		ORDER BY date ASC
 		LIMIT $4 OFFSET $5`,
-		f.Sport, f.Status, f.Date, f.Limit, f.Offset,
+		f.Sport, f.Status, f.Date, f.Limit, f.Offset, f.Search,
 	)
 	if err != nil {
 		return nil, 0, err
@@ -192,7 +197,7 @@ func (r *Repository) List(ctx context.Context, f ListFilter) ([]*Activity, int, 
 		if err := rows.Scan(&a.ActivityID, &a.OrganizerID, &a.Title, &a.Sport,
 			&a.Lat, &a.Lon, &a.Address, &a.Date,
 			&a.MaxParticipants, &a.SpotsLeft, &a.Description,
-			&a.Status, &a.Version, &a.CreatedAt, &a.UpdatedAt); err != nil {
+			&a.Status, &a.Version, &a.ImageURL, &a.CreatedAt, &a.UpdatedAt); err != nil {
 			return nil, 0, err
 		}
 		items = append(items, &a)
@@ -204,8 +209,10 @@ func (r *Repository) List(ctx context.Context, f ListFilter) ([]*Activity, int, 
 		SELECT COUNT(*) FROM activities
 		WHERE (NULLIF($1,'') IS NULL OR sport = $1)
 		  AND (NULLIF($2,'') IS NULL OR status = $2)
-		  AND (NULLIF($3,'') IS NULL OR date::date = ($3)::date)`,
-		f.Sport, f.Status, f.Date,
+		  AND (NULLIF($3,'') IS NULL OR date::date = ($3)::date)
+		  AND (NULLIF($6,'') IS NULL OR title ILIKE '%' || $6 || '%' OR address ILIKE '%' || $6 || '%')
+		  AND date > now() - interval '24 hours'`,
+		f.Sport, f.Status, f.Date, f.Search,
 	).Scan(&total)
 
 	return items, total, nil

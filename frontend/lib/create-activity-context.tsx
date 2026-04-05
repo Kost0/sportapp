@@ -23,6 +23,7 @@ export type CreateActivityData = {
   lat: number;
   lon: number;
   maxParticipants: number;
+  imageUri: string | null;
 };
 
 type CreateActivityContextType = {
@@ -41,6 +42,7 @@ const initialData: CreateActivityData = {
   lat: 55.7558,
   lon: 37.6173,
   maxParticipants: 10,
+  imageUri: null,
 };
 
 const CreateActivityContext = createContext<CreateActivityContextType | null>(null);

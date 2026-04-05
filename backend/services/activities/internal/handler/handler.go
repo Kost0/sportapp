@@ -112,6 +112,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		Sport  string   `json:"sport"`
 		Date   string   `json:"date"`
 		Status string   `json:"status"`
+		Search string   `json:"search"`
 		Limit  int      `json:"limit"`
 		Offset int      `json:"offset"`
 		Lat    *float64 `json:"lat"`
@@ -131,6 +132,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		Sport:  req.Sport,
 		Date:   req.Date,
 		Status: req.Status,
+		Search: req.Search,
 		Limit:  req.Limit,
 		Offset: req.Offset,
 	})
@@ -149,14 +151,19 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		Status      string    `json:"status"`
 		Version     int64     `json:"version"`
 		OrganizerID string    `json:"organizerId"`
+		ImageURL    string    `json:"imageUrl,omitempty"`
 	}
 
 	var dtos []itemDTO
 
 	for _, a := range items {
+		imageURL := ""
+		if a.ImageURL.Valid {
+			imageURL = a.ImageURL.String
+		}
 		dtos = append(dtos, itemDTO{
 			a.ActivityID, a.Title, a.Sport, a.Address, a.Date,
-			a.SpotsLeft, a.Status, a.Version, a.OrganizerID,
+			a.SpotsLeft, a.Status, a.Version, a.OrganizerID, imageURL,
 		})
 	}
 

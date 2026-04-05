@@ -1,4 +1,4 @@
-import { postJson } from '@/lib/api/client';
+import { postJson, fetchFormData } from '@/lib/api/client';
 
 export type ProfileGender = 'MALE' | 'FEMALE' | 'OTHER' | '';
 
@@ -31,6 +31,15 @@ export const getProfile = async (token: string): Promise<Profile> => {
 
 export const updateProfile = async (token: string, req: UpdateProfileReq): Promise<UpdateProfileResp> => {
   return postJson<UpdateProfileReq, UpdateProfileResp>('/profile/update', req, { token });
+};
+
+export type UploadAvatarResp = {
+  avatarUrl: string;
+  version: number;
+};
+
+export const uploadAvatar = async (token: string, uri: string): Promise<UploadAvatarResp> => {
+  return fetchFormData<UploadAvatarResp>('/profile/avatar', uri, { token });
 };
 
 export type PublicProfile = {

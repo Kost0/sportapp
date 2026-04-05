@@ -38,11 +38,16 @@ export function ActivityCard({ activity, onPress, colorScheme }: Props) {
     return `осталось ${Math.max(activity.spotsLeft, 0)} мест`;
   }, [activity.spotsLeft, activity.status]);
 
+  const hasImage = activity.imageUrl && /^https?:\/\//.test(activity.imageUrl);
+
   return (
     <PressableCard onPress={() => onPress(activity.activityId)} padding="none">
       <View style={styles.inner}>
+        {hasImage && (
+          <Image source={{ uri: activity.imageUrl }} style={styles.cardImage} />
+        )}
         {/* Top row: sport title + status badge */}
-        <View style={styles.topRow}>
+        <View style={[styles.topRow, hasImage && styles.topRowWithImage]}>
           <View style={styles.titleRow}>
             <Text numberOfLines={1} style={[TEXT_STYLES.h3, { color: colors.textPrimary, flexShrink: 1 }]}>
               {activity.sport}
@@ -139,5 +144,13 @@ const styles = StyleSheet.create({
     height: 3,
     borderRadius: RADIUS.full,
     flexShrink: 0,
+  },
+  cardImage: {
+    width: '100%',
+    height: 140,
+    marginBottom: SPACING.sm,
+  },
+  topRowWithImage: {
+    paddingTop: 0,
   },
 });

@@ -2,7 +2,6 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  Alert,
   Image,
   Pressable,
   RefreshControl,
@@ -14,7 +13,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MyActivityCard } from "@/components/my-activity-card";
-import { SportCategoryCard } from "@/components/sport-category-card";
+import { CategoryCard, type CategoryData } from "@/components/ui/category-card";
+import { HeroCard } from "@/components/ui/hero-card";
+import { SkeletonGroup } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
 import { COLORS, getColor } from "@/constants/colors";
 import { TEXT_STYLES } from "@/constants/typography";
 import { SPACING, SCREEN } from "@/constants/spacing";
@@ -32,11 +34,19 @@ const TIME_FILTERS: { key: TimeFilter; label: string }[] = [
   { key: "completed", label: "Завершён" },
 ];
 
-const SPORT_CATEGORIES = [
-  { key: "news", label: "Новости", icon: "article" },
-  { key: "running", label: "Бег", icon: "directions-run" },
-  { key: "cycling", label: "Велосипед", icon: "directions-bike" },
-  { key: "hiking", label: "Походы", icon: "terrain" },
+const SPORT_CATEGORIES: CategoryData[] = [
+  { key: "running", label: "Бег", icon: "directions-run", emoji: "🏃" },
+  { key: "cycling", label: "Велосипед", icon: "directions-bike", emoji: "🚴" },
+  { key: "football", label: "Футбол", icon: "sports-soccer", emoji: "⚽" },
+  { key: "basketball", label: "Баскетбол", icon: "sports-basketball", emoji: "🏀" },
+  { key: "tennis", label: "Теннис", icon: "sports-tennis", emoji: "🎾" },
+  { key: "swimming", label: "Плавание", icon: "pool", emoji: "🏊" },
+];
+
+const HERO_SUGGESTIONS = [
+  { sport: "Бег", emoji: "🏃", title: "Хочешь побегать?", subtitle: "Найдем маршрут рядом", action: "Найти маршрут" },
+  { sport: "Футбол", emoji: "⚽", title: "Сыграем в футбол?", subtitle: "Находим партнеров поблизости", action: "Найти игру" },
+  { sport: "Велосипед", emoji: "🚴", title: "Покатаемся?", subtitle: "Открой для себя новые маршруты", action: "Выбрать маршрут" },
 ];
 
 export default function HomeScreen() {
@@ -47,6 +57,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<TimeFilter>("today");
+  const [heroIndex, setHeroIndex] = useState(0);
   const colors = getColor();
 
   const loadData = useCallback(async (isRefresh = false) => {
@@ -90,11 +101,13 @@ export default function HomeScreen() {
     if (!homeData?.myActivities) return [];
     
     const now = new Date();
+    // Start of today
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // For comparison: use end of today for "today" filter only
     const activities = homeData.myActivities;
 
     switch (activeFilter) {
       case "today": {
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const todayEnd = new Date(todayStart);
         todayEnd.setDate(todayEnd.getDate() + 1);
         return activities.filter((a) => {
@@ -105,34 +118,37 @@ export default function HomeScreen() {
       case "3days": {
         const threeDaysLater = new Date(now);
         threeDaysLater.setDate(threeDaysLater.getDate() + 3);
-        return activities.filter((a) => new Date(a.date) <= threeDaysLater);
+        return activities.filter((a) => {
+          const date = new Date(a.date);
+          return date >= todayStart && date <= threeDaysLater;
+        });
       }
       case "7days": {
         const sevenDaysLater = new Date(now);
         sevenDaysLater.setDate(sevenDaysLater.getDate() + 7);
-        return activities.filter((a) => new Date(a.date) <= sevenDaysLater);
+        return activities.filter((a) => {
+          const date = new Date(a.date);
+          return date >= todayStart && date <= sevenDaysLater;
+        });
       }
       case "completed":
         return activities.filter((a) => a.status === "COMPLETED");
       default:
-        return activities;
+        // Default: show only upcoming activities (from now onwards)
+        return activities.filter((a) => new Date(a.date) >= todayStart);
     }
   }, [homeData?.myActivities, activeFilter]);
 
   const handleCategoryPress = (categoryKey: string) => {
-    if (categoryKey === "news") {
-      // Navigate to news tab or screen
-    } else {
-      router.push("/activities");
-    }
+    router.push("/activities");
+  };
+
+  const handleHeroAction = () => {
+    router.push("/activities");
   };
 
   const handleNotificationPress = () => {
-    Alert.alert(
-      'Уведомления',
-      'Раздел уведомлений находится в разработке',
-      [{ text: 'OK' }]
-    );
+    // TODO: Navigate to notifications
   };
 
   const handleProfilePress = () => {
@@ -142,6 +158,13 @@ export default function HomeScreen() {
   const handleActivityPress = (activityId: string) => {
     router.push({ pathname: "/activity/[id]", params: { id: activityId } } as any);
   };
+
+  const handleCreateActivity = () => {
+    router.push("/create-activity");
+  };
+
+  // Get random hero suggestion
+  const heroSuggestion = HERO_SUGGESTIONS[heroIndex % HERO_SUGGESTIONS.length];
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
@@ -170,7 +193,7 @@ export default function HomeScreen() {
               style={styles.userAvatar}
             />
             <View>
-              <Text style={[TEXT_STYLES.body, { color: colors.textSecondary }]}>Привет,</Text>
+              <Text style={[TEXT_STYLES.bodySm, { color: colors.textSecondary }]}>Привет,</Text>
               <Text style={[TEXT_STYLES.h3, { color: colors.textPrimary }]}>
                 {homeData?.user.username || "Пользователь"}
               </Text>
@@ -192,91 +215,131 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
-        {/* Question Section */}
-        <Text style={[TEXT_STYLES.h3, styles.questionText]}>Чем займешься сегодня?</Text>
+        {/* Hero Card - Personalized Suggestion */}
+        <View style={styles.heroSection}>
+          {loading ? (
+            <SkeletonGroup count={1} variant="card" />
+          ) : (
+            <HeroCard
+              title={heroSuggestion.title}
+              subtitle={heroSuggestion.subtitle}
+              emoji={heroSuggestion.emoji}
+              actionLabel={heroSuggestion.action}
+              onAction={handleHeroAction}
+              gradient={['#29313E', '#4A5568']}
+            />
+          )}
+        </View>
 
         {/* Sport Categories */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.categoriesContent}
-          style={styles.categoriesScroll}
-        >
-          {SPORT_CATEGORIES.map((category) => (
-            <SportCategoryCard
-              key={category.key}
-              icon={
-                <MaterialIcons
-                  name={category.icon as any}
-                  size={28}
-                  color={colors.ink}
-                />
-              }
-              label={category.label}
-              onPress={() => handleCategoryPress(category.key)}
-            />
-          ))}
-        </ScrollView>
-
-        {/* My Activities Section */}
-        <Text style={[TEXT_STYLES.h3, styles.sectionTitle]}>Мои активности</Text>
-
-        {/* Time Filters */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filtersContent}
-          style={styles.filtersScroll}
-        >
-          {TIME_FILTERS.map((filter) => (
-            <Pressable
-              key={filter.key}
-              onPress={() => setActiveFilter(filter.key)}
-              style={[
-                styles.filterPill,
-                activeFilter === filter.key && styles.filterPillActive,
-              ]}
-            >
-              <Text
-                style={[
-                  TEXT_STYLES.label,
-                  styles.filterText,
-                  activeFilter === filter.key && styles.filterTextActive,
-                ]}
-              >
-                {filter.label}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[TEXT_STYLES.h3, { color: colors.textPrimary }]}>
+              Категории
+            </Text>
+            <Pressable onPress={() => router.push("/activities")} hitSlop={8}>
+              <Text style={[TEXT_STYLES.label, { color: colors.textSecondary }]}>
+                Все →
               </Text>
             </Pressable>
-          ))}
-        </ScrollView>
-
-        {/* Activities List */}
-        {loading ? (
-          <Text style={[TEXT_STYLES.body, styles.loadingText]}>Загрузка...</Text>
-        ) : filteredActivities.length > 0 ? (
-          <View style={styles.activitiesList}>
-            {filteredActivities.map((activity, index) => (
-              <View key={activity.activityId}>
-                <MyActivityCard
-                  activity={activity}
-                  organizerName={homeData?.user.username}
-                  organizerAvatar={homeData?.user.avatarUrl}
-                  distance="~ 1.3 км"
-                  onPress={handleActivityPress}
-                />
-                {index < filteredActivities.length - 1 && (
-                  <View style={{ height: SCREEN.cardGap }} />
-                )}
-              </View>
-            ))}
           </View>
-        ) : (
-          <View style={styles.emptyState}>
-            <Text style={[TEXT_STYLES.body, styles.emptyText]}>
-              Нет активностей для выбранного фильтра
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoriesContent}
+          >
+            {SPORT_CATEGORIES.map((category) => (
+              <CategoryCard
+                key={category.key}
+                category={category}
+                onPress={handleCategoryPress}
+                size="medium"
+              />
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* My Activities Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[TEXT_STYLES.h3, { color: colors.textPrimary }]}>
+              Мои активности
+            </Text>
+            <Text style={[TEXT_STYLES.bodySm, { color: colors.textSecondary }]}>
+              {filteredActivities.length > 0 ? `(${filteredActivities.length})` : ''}
             </Text>
           </View>
-        )}
+
+          {/* Time Filters */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtersContent}
+          >
+            {TIME_FILTERS.map((filter) => (
+              <Pressable
+                key={filter.key}
+                onPress={() => setActiveFilter(filter.key)}
+                style={[
+                  styles.filterPill,
+                  activeFilter === filter.key && styles.filterPillActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    TEXT_STYLES.label,
+                    styles.filterText,
+                    activeFilter === filter.key && styles.filterTextActive,
+                  ]}
+                >
+                  {filter.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+
+          {/* Activities List */}
+          {loading ? (
+            <SkeletonGroup count={2} variant="list-item" />
+          ) : filteredActivities.length > 0 ? (
+            <View style={styles.activitiesList}>
+              {filteredActivities.map((activity, index) => (
+                <View key={activity.activityId}>
+                  <MyActivityCard
+                    activity={activity}
+                    organizerName={homeData?.user.username}
+                    organizerAvatar={homeData?.user.avatarUrl}
+                    distance="~ 1.3 км"
+                    onPress={handleActivityPress}
+                  />
+                  {index < filteredActivities.length - 1 && (
+                    <View style={{ height: SCREEN.cardGap }} />
+                  )}
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <EmptyState
+                emoji="🏃"
+                title="Нет активностей"
+                description="Начните свою первую активность или присоединитесь к существующей"
+                action={{
+                  label: "Создать активность",
+                  onPress: handleCreateActivity,
+                }}
+              />
+            </View>
+          )}
+        </View>
+
+        {/* Quick Action FAB */}
+        <Pressable
+          style={[styles.fab, { backgroundColor: colors.ink }]}
+          onPress={handleCreateActivity}
+        >
+          <MaterialIcons name="add" size={28} color={colors.textInverse} />
+        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
@@ -291,7 +354,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    paddingBottom: SCREEN.bottomPadding,
+    paddingBottom: SCREEN.bottomPadding + 80, // Extra space for FAB
   },
   header: {
     flexDirection: "row",
@@ -299,7 +362,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: SCREEN.paddingHorizontal,
     paddingTop: SPACING.sm,
-    paddingBottom: SPACING.xl,
+    paddingBottom: SPACING.lg,
   },
   userInfo: {
     flexDirection: "row",
@@ -307,13 +370,13 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
   },
   userAvatar: {
-    width: 52,
-    height: 52,
+    width: 48,
+    height: 48,
     borderRadius: RADIUS.full,
     backgroundColor: COLORS.divider,
   },
   notificationBtn: {
-    padding: 4,
+    padding: SPACING.xs,
   },
   banner: {
     marginHorizontal: SCREEN.paddingHorizontal,
@@ -325,27 +388,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.dangerBorder,
   },
-  questionText: {
-    paddingHorizontal: SCREEN.paddingHorizontal,
-    marginBottom: SPACING.base,
-  },
-  categoriesScroll: {
+  heroSection: {
     marginBottom: SPACING.xl,
+  },
+  section: {
+    marginBottom: SPACING.xl,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: SCREEN.paddingHorizontal,
+    marginBottom: SPACING.sm,
   },
   categoriesContent: {
     paddingHorizontal: SCREEN.paddingHorizontal,
     gap: SPACING.sm,
   },
-  sectionTitle: {
-    paddingHorizontal: SCREEN.paddingHorizontal,
-    marginBottom: SPACING.sm,
-  },
-  filtersScroll: {
-    marginBottom: SPACING.base,
-  },
   filtersContent: {
     paddingHorizontal: SCREEN.paddingHorizontal,
     gap: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
   filterPill: {
     paddingHorizontal: SPACING.base,
@@ -368,18 +431,23 @@ const styles = StyleSheet.create({
   activitiesList: {
     paddingHorizontal: SCREEN.paddingHorizontal,
   },
-  loadingText: {
-    textAlign: "center",
-    paddingVertical: SPACING['2xl'],
-    color: COLORS.textSecondary,
-  },
-  emptyState: {
-    paddingVertical: SPACING['3xl'],
+  emptyContainer: {
     paddingHorizontal: SCREEN.paddingHorizontal,
-    alignItems: "center",
+    paddingVertical: SPACING.lg,
   },
-  emptyText: {
-    textAlign: "center",
-    color: COLORS.textSecondary,
+  fab: {
+    position: "absolute",
+    right: SPACING.xl,
+    bottom: SPACING.xl + SCREEN.bottomPadding,
+    width: 56,
+    height: 56,
+    borderRadius: RADIUS.full,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: COLORS.ink,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
 });
