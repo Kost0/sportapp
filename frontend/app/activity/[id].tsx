@@ -2,6 +2,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AvatarStack } from "../../components/avatar-stack";
 import { SportIcon } from "../../components/sport-icon";
 import { StatusBadge } from "../../components/status-badge";
 import { PrimaryButton, SecondaryButton } from "../../components/ui-buttons";
@@ -17,6 +19,8 @@ import { COLORS } from "../../constants/colors";
 import type { ActivityDetail } from "@/lib/api/activities";
 import { getActivity, joinActivity, leaveActivity } from "@/lib/api/activities";
 import { ApiError } from "@/lib/api/client";
+import type { PublicProfile } from "@/lib/api/profile";
+import { getProfileById } from "@/lib/api/profile";
 import { useAuth } from "@/lib/auth/auth-context";
 import { formatStartsAt } from "../../utils/date-format";
 
@@ -31,6 +35,8 @@ export default function ActivityDetailsScreen() {
 
   const { token, logout } = useAuth();
   const [activity, setActivity] = useState<ActivityDetail | null>(null);
+  const [organizer, setOrganizer] = useState<PublicProfile | null>(null);
+  const [participantProfiles, setParticipantProfiles] = useState<PublicProfile[]>([]);
   const [busy, setBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +57,13 @@ export default function ActivityDetailsScreen() {
       .then((res) => {
         if (cancelled) return;
         setActivity(res);
+        
+        // Load organizer profile
+        return getProfileById(token, res.organizerId);
+      })
+      .then((profile) => {
+        if (cancelled) return;
+        if (profile) setOrganizer(profile);
       })
       .catch((e: unknown) => {
         if (cancelled) return;
@@ -70,6 +83,34 @@ export default function ActivityDetailsScreen() {
       cancelled = true;
     };
   }, [id, token, logout]);
+
+  // Load participant profiles
+  useEffect(() => {
+    if (!activity || !token) return;
+    if (activity.participants.length === 0) {
+      setParticipantProfiles([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    Promise.all(
+      activity.participants.map(p => 
+        getProfileById(token, p.userId).catch(() => null)
+      )
+    )
+      .then((profiles) => {
+        if (cancelled) return;
+        setParticipantProfiles(profiles.filter((p): p is PublicProfile => p !== null));
+      })
+      .catch(() => {
+        // Ignore errors for participant profiles
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activity, token]);
 
   const canJoin = useMemo(() => {
     if (!activity) return false;
@@ -207,7 +248,27 @@ export default function ActivityDetailsScreen() {
           </View>
         </View>
 
-        <Text style={styles.creatorRole}>Организатор: {activity.organizerId}</Text>
+        {organizer && (
+          <View style={styles.creatorRow}>
+            <View style={styles.creatorAvatar}>
+              {organizer.avatarUrl ? (
+                <Image
+                  source={{ uri: organizer.avatarUrl }}
+                  style={{ width: 50, height: 50, borderRadius: 25 }}
+                />
+              ) : (
+                <MaterialIcons name="person" size={30} color={COLORS.textSecondary} />
+              )}
+            </View>
+            <View style={styles.creatorAbout}>
+              <View style={styles.creatorInline}>
+                <Text style={styles.creatorName}>{organizer.username}</Text>
+                <View style={styles.bullet} />
+                <Text style={styles.creatorRole}>организатор</Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         <Text style={styles.description}>{activity.description || ""}</Text>
 
@@ -237,7 +298,20 @@ export default function ActivityDetailsScreen() {
           <Text style={styles.participantsTitle}>
             Участники ({activity.participants.length})
           </Text>
-          <Text style={styles.description}>
+          {participantProfiles.length > 0 && (
+            <View style={styles.avatarStackWrap}>
+              <AvatarStack
+                participants={participantProfiles.map(p => ({
+                  id: p.userId,
+                  name: p.username,
+                  avatarUrl: p.avatarUrl || '',
+                }))}
+                size={54}
+                max={3}
+              />
+            </View>
+          )}
+          <Text style={styles.spotsText}>
             Осталось мест: {Math.max(activity.spotsLeft, 0)} из {activity.maxParticipants}
           </Text>
         </View>
@@ -342,6 +416,10 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     borderWidth: 1.4,
     borderColor: COLORS.surface,
+    backgroundColor: COLORS.divider,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
   creatorAbout: {
     flex: 1,
@@ -424,6 +502,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: COLORS.textPrimary,
+  },
+  avatarStackWrap: {
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  spotsText: {
+    fontSize: 12,
+    fontWeight: "500",
+    lineHeight: 18,
+    color: COLORS.textSecondary,
   },
   buttonsRow: {
     marginTop: 16,

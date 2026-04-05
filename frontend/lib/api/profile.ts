@@ -32,3 +32,14 @@ export const getProfile = async (token: string): Promise<Profile> => {
 export const updateProfile = async (token: string, req: UpdateProfileReq): Promise<UpdateProfileResp> => {
   return postJson<UpdateProfileReq, UpdateProfileResp>('/profile/update', req, { token });
 };
+
+export type PublicProfile = {
+  userId: string;
+  username: string;
+  avatarUrl?: string;
+  favoriteSports: string[];
+};
+
+export const getProfileById = async (token: string, targetUserId: string): Promise<PublicProfile> => {
+  return postJson<{ targetUserId: string }, PublicProfile>('/profile/get-by-id', { targetUserId }, { token });
+};
