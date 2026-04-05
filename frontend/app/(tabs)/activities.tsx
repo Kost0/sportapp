@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActivityCard } from "@/components/activity-card";
@@ -19,51 +19,79 @@ export default function ActivitiesScreen() {
   const { token, logout } = useAuth();
   const [items, setItems] = useState<ActivityListItem[]>([]);
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const colors = getColor();
 
   const canLoad = useMemo(() => Boolean(token), [token]);
+  const PAGE_SIZE = 20;
 
-  useEffect(() => {
+  const loadItems = useCallback(async (offset = 0, isRefresh = false) => {
     if (!token) return;
 
-    let cancelled = false;
-    setBusy(true);
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setBusy(true);
+    }
     setError(null);
 
-    listActivities(token, 20, 0)
-      .then((res) => {
-        if (cancelled) return;
+    try {
+      const res = await listActivities(token, PAGE_SIZE, offset);
+      if (isRefresh) {
         setItems(res.items ?? []);
-      })
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        if (e instanceof ApiError) {
-          if (e.status === 401) logout();
-          setError(`${e.code}: ${e.message}`);
-        } else {
-          setError('Failed to load activities');
-        }
-      })
-      .finally(() => {
-        if (cancelled) return;
+      } else {
+        setItems(prev => [...prev, ...(res.items ?? [])]);
+      }
+      setHasMore((res.items?.length ?? 0) === PAGE_SIZE);
+    } catch (e: unknown) {
+      if (e instanceof ApiError) {
+        if (e.status === 401) logout();
+        setError(`${e.code}: ${e.message}`);
+      } else {
+        setError('Failed to load activities');
+      }
+    } finally {
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
         setBusy(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+      }
+    }
   }, [token, logout]);
+
+  useEffect(() => {
+    loadItems(0, true);
+  }, [loadItems]);
+
+  const onRefresh = useCallback(() => {
+    loadItems(0, true);
+  }, [loadItems]);
+
+  const onEndReached = useCallback(() => {
+    if (!busy && hasMore) {
+      loadItems(items.length, false);
+    }
+  }, [busy, hasMore, loadItems, items.length]);
+
+  const handleSearchPress = () => {
+    Alert.alert('Поиск', 'Фильтр поиска находится в разработке', [{ text: 'OK' }]);
+  };
+
+  const handleMorePress = () => {
+    Alert.alert('Настройки', 'Дополнительные настройки находятся в разработке', [{ text: 'OK' }]);
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={[TEXT_STYLES.h3, { color: colors.ink }]}>Искать активность</Text>
         <View style={styles.headerIcons}>
-          <Pressable hitSlop={10}>
+          <Pressable hitSlop={10} onPress={handleSearchPress}>
             <MaterialIcons name="search" size={20} color={colors.textSecondary} />
           </Pressable>
-          <Pressable hitSlop={10}>
+          <Pressable hitSlop={10} onPress={handleMorePress}>
             <MaterialIcons name="more-vert" size={20} color={colors.textSecondary} />
           </Pressable>
         </View>
@@ -79,6 +107,16 @@ export default function ActivitiesScreen() {
         data={items}
         keyExtractor={(item) => item.activityId}
         contentContainerStyle={styles.listContent}
+        onEndReached={onEndReached}
+        onEndReachedThreshold={0.5}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.ink}
+            colors={[colors.ink]}
+          />
+        }
         ListHeaderComponent={
           <>
             <View style={styles.mapPlaceholder}>

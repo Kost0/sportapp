@@ -3,6 +3,8 @@ import { Image } from 'expo-image';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -70,6 +72,10 @@ export default function ProfileScreen() {
   const [gender, setGender] = useState<ProfileGender>('');
   const [birthDate, setBirthDate] = useState('');
   const [favoriteSports, setFavoriteSports] = useState<string[]>([]);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // For simple date picker (using modal with date options)
+  const [tempDate, setTempDate] = useState<Date>(new Date());
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -136,6 +142,17 @@ export default function ProfileScreen() {
       return Array.from(set);
     });
   }, []);
+
+  const handleReset = useCallback(() => {
+    Alert.alert(
+      'Сбросить изменения?',
+      'Все несохраненные изменения будут потеряны.',
+      [
+        { text: 'Отмена', style: 'cancel' },
+        { text: 'Сбросить', style: 'destructive', onPress: () => load() },
+      ]
+    );
+  }, [load]);
 
   const save = useCallback(async () => {
     if (!token) return;
@@ -248,23 +265,80 @@ export default function ProfileScreen() {
 
         <ProfileCard style={styles.cardPadded}>
           <LabeledBlock label="Возраст / Дата рождения">
-            <TextInput
-              value={birthDate}
-              onChangeText={setBirthDate}
-              placeholder="2001-03-12"
-              placeholderTextColor={colors.inputPlaceholder}
-              editable={!saving}
-              style={[styles.valueInput, { color: colors.ink, borderBottomColor: colors.border }]}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {birthSummary ? (
-              <Text style={[TEXT_STYLES.bodySm, { color: colors.textSecondary, marginTop: SPACING.xs }]}>
-                {birthSummary}
-              </Text>
-            ) : null}
+            <Pressable 
+              style={[styles.dateInput, { borderBottomColor: colors.border }]}
+              onPress={() => setShowDatePicker(true)}
+              disabled={saving}
+            >
+              {birthDate ? (
+                <Text style={[styles.dateText, { color: colors.ink }]}>
+                  {birthSummary}
+                </Text>
+              ) : (
+                <Text style={[styles.dateText, { color: colors.inputPlaceholder }]}>
+                  Выберите дату рождения
+                </Text>
+              )}
+              <MaterialIcons name="calendar-today" size={20} color={colors.textSecondary} />
+            </Pressable>
           </LabeledBlock>
         </ProfileCard>
+
+        {/* Simple Date Picker Modal */}
+        <Modal
+          visible={showDatePicker}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <Pressable 
+            style={styles.modalOverlay}
+            onPress={() => setShowDatePicker(false)}
+          >
+            <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+              <Text style={styles.modalTitle}>Дата рождения</Text>
+              <ScrollView style={styles.dateList} showsVerticalScrollIndicator={false}>
+                {Array.from({ length: 100 }, (_, i) => {
+                  const year = new Date().getFullYear() - i;
+                  return (
+                    <View key={year} style={styles.yearSection}>
+                      <Text style={styles.yearLabel}>{year}</Text>
+                      <View style={styles.monthsRow}>
+                        {['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'].map(month => (
+                          <Pressable
+                            key={month}
+                            style={[
+                              styles.dayButton,
+                              birthDate === `${year}-${month}-01` && styles.dayButtonSelected
+                            ]}
+                            onPress={() => {
+                              const day = month === '02' ? '28' : '15';
+                              setBirthDate(`${year}-${month}-${day}`);
+                              setShowDatePicker(false);
+                            }}
+                          >
+                            <Text style={[
+                              styles.dayButtonText,
+                              birthDate === `${year}-${month}-01` && styles.dayButtonTextSelected
+                            ]}>
+                              {['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'][parseInt(month) - 1]}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </View>
+                  );
+                })}
+              </ScrollView>
+              <View style={styles.modalButtons}>
+                <SecondaryButton 
+                  title="Отмена" 
+                  onPress={() => setShowDatePicker(false)} 
+                />
+              </View>
+            </View>
+          </Pressable>
+        </Modal>
 
         <ProfileCard style={styles.cardPadded}>
           <LabeledBlock label="Любимые активности">
@@ -284,7 +358,7 @@ export default function ProfileScreen() {
 
         <View style={styles.actions}>
           <PrimaryButton title="Сохранить" onPress={save} loading={saving} />
-          <SecondaryButton title="Сбросить" onPress={load} disabled={loading || saving} />
+          <SecondaryButton title="Сбросить" onPress={handleReset} disabled={loading || saving} />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -374,5 +448,72 @@ const styles = StyleSheet.create({
   actions: {
     gap: SPACING.sm,
     paddingTop: SPACING.xs,
+  },
+  dateInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: 40,
+    borderBottomWidth: 1,
+  },
+  dateText: {
+    fontSize: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.base,
+  },
+  modalContent: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.base,
+    width: '100%',
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    marginBottom: SPACING.base,
+  },
+  dateList: {
+    maxHeight: 400,
+  },
+  yearSection: {
+    marginBottom: SPACING.base,
+  },
+  yearLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.xs,
+  },
+  monthsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.xs,
+  },
+  dayButton: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.divider,
+  },
+  dayButtonSelected: {
+    backgroundColor: COLORS.ink,
+  },
+  dayButtonText: {
+    fontSize: 12,
+    color: COLORS.textPrimary,
+  },
+  dayButtonTextSelected: {
+    color: COLORS.surface,
+  },
+  modalButtons: {
+    marginTop: SPACING.base,
   },
 });

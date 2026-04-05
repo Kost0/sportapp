@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import { MaterialIcons } from '@expo/vector-icons';
+import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +16,6 @@ import { SelectablePill } from '@/components/profile/selectable-pill';
 import { PrimaryButton, SecondaryButton } from '@/components/ui-buttons';
 import { COLORS } from '@/constants/colors';
 import { ApiError } from '@/lib/api/client';
-import { getApiBaseUrl } from '@/lib/api/config';
 import { useAuth } from '@/lib/auth/auth-context';
 
 const BORDER = '#E5E7EB';
@@ -25,10 +26,9 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const baseUrl = useMemo(() => getApiBaseUrl(), []);
 
   const submit = async () => {
     setBusy(true);
@@ -84,8 +84,6 @@ export default function LoginScreen() {
               />
             </View>
 
-            <Text style={styles.apiHint}>API: {baseUrl}</Text>
-
             <View style={styles.fields}>
               <TextInput
                 value={email}
@@ -114,17 +112,30 @@ export default function LoginScreen() {
                 />
               ) : null}
 
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                placeholder="Пароль"
-                placeholderTextColor={COLORS.textSecondary}
-                style={styles.input}
-                editable={!busy}
-                returnKeyType="done"
-                onSubmitEditing={() => void submit()}
-              />
+              <View style={styles.passwordInput}>
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  placeholder="Пароль"
+                  placeholderTextColor={COLORS.textSecondary}
+                  style={styles.passwordField}
+                  editable={!busy}
+                  returnKeyType="done"
+                  onSubmitEditing={() => void submit()}
+                />
+                <Pressable
+                  onPress={() => setShowPassword(!showPassword)}
+                  hitSlop={8}
+                  style={styles.eyeButton}
+                >
+                  <MaterialIcons
+                    name={showPassword ? 'visibility-off' : 'visibility'}
+                    size={22}
+                    color={COLORS.textSecondary}
+                  />
+                </Pressable>
+              </View>
             </View>
 
             {error ? (
@@ -193,11 +204,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
-  apiHint: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-  },
   fields: {
     gap: 10,
   },
@@ -211,6 +217,28 @@ const styles = StyleSheet.create({
     borderColor: BORDER,
     fontSize: 14,
     fontWeight: '600',
+  },
+  passwordInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 46,
+    borderRadius: 14,
+    paddingHorizontal: 0,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: BORDER,
+  },
+  passwordField: {
+    flex: 1,
+    height: 46,
+    paddingHorizontal: 12,
+    color: COLORS.ink,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  eyeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   banner: {
     paddingHorizontal: 12,

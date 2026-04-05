@@ -1,9 +1,11 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  Alert,
   Image,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -34,7 +36,7 @@ const SPORT_CATEGORIES = [
   { key: "news", label: "Новости", icon: "article" },
   { key: "running", label: "Бег", icon: "directions-run" },
   { key: "cycling", label: "Велосипед", icon: "directions-bike" },
-  { key: "hiking", label: "Hiking", icon: "terrain" },
+  { key: "hiking", label: "Походы", icon: "terrain" },
 ];
 
 export default function HomeScreen() {
@@ -42,40 +44,47 @@ export default function HomeScreen() {
   const { token, logout } = useAuth();
   const [homeData, setHomeData] = useState<HomeData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<TimeFilter>("today");
   const colors = getColor();
 
-  useEffect(() => {
+  const loadData = useCallback(async (isRefresh = false) => {
     if (!token) return;
 
-    let cancelled = false;
-    setLoading(true);
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
 
-    getHomeData(token)
-      .then((data) => {
-        if (cancelled) return;
-        setHomeData(data);
-      })
-      .catch((e: unknown) => {
-        if (cancelled) return;
-        if (e instanceof ApiError) {
-          if (e.status === 401) logout();
-          setError(`${e.code}: ${e.message}`);
-        } else {
-          setError("Не удалось загрузить данные");
-        }
-      })
-      .finally(() => {
-        if (cancelled) return;
+    try {
+      const data = await getHomeData(token);
+      setHomeData(data);
+    } catch (e: unknown) {
+      if (e instanceof ApiError) {
+        if (e.status === 401) logout();
+        setError(`${e.code}: ${e.message}`);
+      } else {
+        setError("Не удалось загрузить данные");
+      }
+    } finally {
+      if (isRefresh) {
+        setRefreshing(false);
+      } else {
         setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
+      }
+    }
   }, [token, logout]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const onRefresh = useCallback(() => {
+    loadData(true);
+  }, [loadData]);
 
   const filteredActivities = React.useMemo(() => {
     if (!homeData?.myActivities) return [];
@@ -119,7 +128,11 @@ export default function HomeScreen() {
   };
 
   const handleNotificationPress = () => {
-    // Navigate to notifications screen
+    Alert.alert(
+      'Уведомления',
+      'Раздел уведомлений находится в разработке',
+      [{ text: 'OK' }]
+    );
   };
 
   const handleProfilePress = () => {
@@ -136,6 +149,14 @@ export default function HomeScreen() {
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.ink}
+            colors={[colors.ink]}
+          />
+        }
       >
         {/* Header */}
         <View style={styles.header}>

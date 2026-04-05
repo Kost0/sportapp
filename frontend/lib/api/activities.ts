@@ -96,3 +96,45 @@ export type CreateActivityResp = {
 export const createActivity = async (token: string, input: CreateActivityInput) => {
   return postJson<CreateActivityInput, CreateActivityResp>('/activities/create', input, { token });
 };
+
+export type UpdateActivityInput = {
+  title?: string;
+  sport?: string;
+  lat?: number;
+  lon?: number;
+  address?: string;
+  date?: string;
+  maxParticipants?: number;
+  description?: string;
+};
+
+export type UpdateActivityResp = {
+  activityId: string;
+  updated: boolean;
+  version: number;
+};
+
+export const updateActivity = async (
+  token: string,
+  activityId: string,
+  userId: string,
+  input: UpdateActivityInput
+) => {
+  return postJson<
+    { userId: string; activityId: string } & UpdateActivityInput,
+    UpdateActivityResp
+  >('/activities/update', { userId, activityId, ...input }, { token });
+};
+
+export type ReportActivityInput = {
+  activityId: string;
+  reporterId: string;
+  reason: string;
+};
+
+export const reportActivity = async (
+  token: string,
+  input: ReportActivityInput
+) => {
+  return postJson<ReportActivityInput, void>('/activities/report', input, { token });
+};
