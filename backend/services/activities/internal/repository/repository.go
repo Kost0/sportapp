@@ -172,25 +172,140 @@ type ListFilter struct {
 }
 
 func (r *Repository) List(ctx context.Context, f ListFilter) ([]*Activity, int, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	// Handle date filter specially - use PostgreSQL date functions for special values
+	// and NULLIF for specific dates
+
+	var items []*Activity
+	var total int
+	var err error
+
+	// Always use 6 parameters in correct order: sport, status, date, limit, offset, search
+	baseWhere := `
+		WHERE (NULLIF($1,'') IS NULL OR sport = $1)
+		  AND (NULLIF($2,'') IS NULL OR status = $2)
+		  AND (NULLIF($3,'') IS NULL OR date::date = $3::date)
+		  AND (NULLIF($6,'') IS NULL OR title ILIKE '%' || $6 || '%' OR address ILIKE '%' || $6 || '%')`
+
+	// Determine the date filter based on special values
+	dateValue := f.Date
+	if f.Date == "today" {
+		// For "today", pass empty string and modify the query to use current_date
+		dateValue = ""
+		query := `
+			SELECT activity_id,organizer_id,title,sport,lat,lon,address,date,
+			  max_participants,spots_left,description,status,version,image_url,created_at,updated_at
+			FROM activities
+			` + baseWhere + ` AND date::date = current_date
+			ORDER BY date ASC
+			LIMIT $4 OFFSET $5`
+		rows, err := r.db.QueryContext(ctx, query,
+			f.Sport, f.Status, dateValue, f.Limit, f.Offset, f.Search)
+		if err != nil {
+			return nil, 0, err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var a Activity
+			if err := rows.Scan(&a.ActivityID, &a.OrganizerID, &a.Title, &a.Sport,
+				&a.Lat, &a.Lon, &a.Address, &a.Date,
+				&a.MaxParticipants, &a.SpotsLeft, &a.Description,
+				&a.Status, &a.Version, &a.ImageURL, &a.CreatedAt, &a.UpdatedAt); err != nil {
+				return nil, 0, err
+			}
+			items = append(items, &a)
+		}
+
+		r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM activities `+baseWhere+` AND date::date = current_date`,
+			f.Sport, f.Status, dateValue, f.Limit, f.Offset, f.Search).Scan(&total)
+		return items, total, nil
+	}
+
+	if f.Date == "week" {
+		dateValue = ""
+		query := `
+			SELECT activity_id,organizer_id,title,sport,lat,lon,address,date,
+			  max_participants,spots_left,description,status,version,image_url,created_at,updated_at
+			FROM activities
+			` + baseWhere + ` AND date >= current_date AND date <= current_date + interval '7 days'
+			ORDER BY date ASC
+			LIMIT $4 OFFSET $5`
+		rows, err := r.db.QueryContext(ctx, query,
+			f.Sport, f.Status, dateValue, f.Limit, f.Offset, f.Search)
+		if err != nil {
+			return nil, 0, err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var a Activity
+			if err := rows.Scan(&a.ActivityID, &a.OrganizerID, &a.Title, &a.Sport,
+				&a.Lat, &a.Lon, &a.Address, &a.Date,
+				&a.MaxParticipants, &a.SpotsLeft, &a.Description,
+				&a.Status, &a.Version, &a.ImageURL, &a.CreatedAt, &a.UpdatedAt); err != nil {
+				return nil, 0, err
+			}
+			items = append(items, &a)
+		}
+
+		r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM activities `+baseWhere+` AND date >= current_date AND date <= current_date + interval '7 days'`,
+			f.Sport, f.Status, dateValue, f.Limit, f.Offset, f.Search).Scan(&total)
+		return items, total, nil
+	}
+
+	if f.Date == "month" {
+		dateValue = ""
+		query := `
+			SELECT activity_id,organizer_id,title,sport,lat,lon,address,date,
+			  max_participants,spots_left,description,status,version,image_url,created_at,updated_at
+			FROM activities
+			` + baseWhere + ` AND date >= current_date AND date <= current_date + interval '30 days'
+			ORDER BY date ASC
+			LIMIT $4 OFFSET $5`
+		rows, err := r.db.QueryContext(ctx, query,
+			f.Sport, f.Status, dateValue, f.Limit, f.Offset, f.Search)
+		if err != nil {
+			return nil, 0, err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var a Activity
+			if err := rows.Scan(&a.ActivityID, &a.OrganizerID, &a.Title, &a.Sport,
+				&a.Lat, &a.Lon, &a.Address, &a.Date,
+				&a.MaxParticipants, &a.SpotsLeft, &a.Description,
+				&a.Status, &a.Version, &a.ImageURL, &a.CreatedAt, &a.UpdatedAt); err != nil {
+				return nil, 0, err
+			}
+			items = append(items, &a)
+		}
+
+		r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM activities `+baseWhere+` AND date >= current_date AND date <= current_date + interval '30 days'`,
+			f.Sport, f.Status, dateValue, f.Limit, f.Offset, f.Search).Scan(&total)
+		return items, total, nil
+	}
+
+	// Default case: use the standard query with date filter (specific date or no filter)
+	// Add the "last 24 hours" filter for default case
+	dateWhere := `AND date > now() - interval '24 hours'`
+	if f.Date != "" {
+		dateWhere = ""
+	}
+
+	query := `
 		SELECT activity_id,organizer_id,title,sport,lat,lon,address,date,
 		  max_participants,spots_left,description,status,version,image_url,created_at,updated_at
 		FROM activities
-		WHERE (NULLIF($1,'') IS NULL OR sport = $1)
-		  AND (NULLIF($2,'') IS NULL OR status = $2)
-		  AND (NULLIF($3,'') IS NULL OR date::date = ($3)::date)
-		  AND (NULLIF($6,'') IS NULL OR title ILIKE '%' || $6 || '%' OR address ILIKE '%' || $6 || '%')
-		  AND date > now() - interval '24 hours'
+		` + baseWhere + ` ` + dateWhere + `
 		ORDER BY date ASC
-		LIMIT $4 OFFSET $5`,
-		f.Sport, f.Status, f.Date, f.Limit, f.Offset, f.Search,
-	)
+		LIMIT $4 OFFSET $5`
+
+	rows, err := r.db.QueryContext(ctx, query,
+		f.Sport, f.Status, dateValue, f.Limit, f.Offset, f.Search)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer rows.Close()
-
-	var items []*Activity
 
 	for rows.Next() {
 		var a Activity
@@ -203,17 +318,9 @@ func (r *Repository) List(ctx context.Context, f ListFilter) ([]*Activity, int, 
 		items = append(items, &a)
 	}
 
-	var total int
-
-	r.db.QueryRowContext(ctx, `
-		SELECT COUNT(*) FROM activities
-		WHERE (NULLIF($1,'') IS NULL OR sport = $1)
-		  AND (NULLIF($2,'') IS NULL OR status = $2)
-		  AND (NULLIF($3,'') IS NULL OR date::date = ($3)::date)
-		  AND (NULLIF($6,'') IS NULL OR title ILIKE '%' || $6 || '%' OR address ILIKE '%' || $6 || '%')
-		  AND date > now() - interval '24 hours'`,
-		f.Sport, f.Status, f.Date, f.Search,
-	).Scan(&total)
+	countQuery := `SELECT COUNT(*) FROM activities ` + baseWhere + ` ` + dateWhere
+	r.db.QueryRowContext(ctx, countQuery,
+		f.Sport, f.Status, dateValue, f.Limit, f.Offset, f.Search).Scan(&total)
 
 	return items, total, nil
 }
