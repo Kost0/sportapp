@@ -1,4 +1,6 @@
 import { postJson, fetchFormData } from '@/lib/api/client';
+import { getApiBaseUrl } from './config';
+import { resolveMediaUrl } from '@/utils/media-url';
 
 export type ProfileGender = 'MALE' | 'FEMALE' | 'OTHER' | '';
 
@@ -15,7 +17,7 @@ export type Profile = {
 
 export type UpdateProfileReq = {
   username: string;
-  gender?: Exclude<ProfileGender, ''>;
+  gender?: ProfileGender;
   birthDate?: string;
   favoriteSports: string[];
 };
@@ -26,7 +28,8 @@ export type UpdateProfileResp = {
 };
 
 export const getProfile = async (token: string): Promise<Profile> => {
-  return postJson<Record<string, never>, Profile>('/profile/get', {}, { token });
+  const profile = await postJson<Record<string, never>, Profile>('/profile/get', {}, { token });
+  return { ...profile, avatarUrl: resolveMediaUrl(profile.avatarUrl, getApiBaseUrl()) };
 };
 
 export const updateProfile = async (token: string, req: UpdateProfileReq): Promise<UpdateProfileResp> => {
@@ -50,5 +53,6 @@ export type PublicProfile = {
 };
 
 export const getProfileById = async (token: string, targetUserId: string): Promise<PublicProfile> => {
-  return postJson<{ targetUserId: string }, PublicProfile>('/profile/get-by-id', { targetUserId }, { token });
+  const profile = await postJson<{ targetUserId: string }, PublicProfile>('/profile/get-by-id', { targetUserId }, { token });
+  return { ...profile, avatarUrl: resolveMediaUrl(profile.avatarUrl, getApiBaseUrl()) };
 };

@@ -1,5 +1,5 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -30,7 +30,14 @@ export default function LoginScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const submitting = useRef(false);
   const submit = async () => {
+    if (submitting.current) return;
+    if (!email.trim() || !password || (mode === 'register' && !username.trim())) {
+      setError(mode === 'register' ? 'Укажите email, никнейм и пароль.' : 'Укажите email и пароль.');
+      return;
+    }
+    submitting.current = true;
     setBusy(true);
     setError(null);
 
@@ -38,15 +45,24 @@ export default function LoginScreen() {
       if (mode === 'login') {
         await login(email.trim(), password);
       } else {
-        await register(email.trim(), password, username.trim() || 'user');
+        await register(email.trim(), password, username.trim());
       }
     } catch (e: unknown) {
       if (e instanceof ApiError) {
-        setError(`${e.code}: ${e.message}`);
+        const messages: Record<string, string> = {
+          USERNAME_ALREADY_EXISTS: 'Этот никнейм уже занят. Выберите другой.',
+          EMAIL_ALREADY_EXISTS: 'Этот email уже зарегистрирован. Войдите в аккаунт.',
+          INVALID_REGISTRATION: 'Проверьте email, никнейм и пароль.',
+          REGISTRATION_UNAVAILABLE: 'Не удалось завершить регистрацию. Повторите попытку с теми же email, никнеймом и паролем.',
+          REGISTRATION_INCOMPLETE: 'Регистрация не завершена. Откройте «Регистрация» и повторите её с исходными email, никнеймом и паролем.',
+          INVALID_CREDENTIALS: 'Неверный email или пароль.',
+        };
+        setError(messages[e.code] ?? `${e.code}: ${e.message}`);
       } else {
-        setError('Unexpected error');
+        setError('Не удалось связаться с сервером. Попробуйте ещё раз.');
       }
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   };

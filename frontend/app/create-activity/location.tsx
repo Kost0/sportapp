@@ -1,7 +1,10 @@
+import { PlaceList } from '@/components/place-list';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter, type Href } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import {
+  Modal,
+  Pressable,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -20,6 +23,7 @@ import { useCreateActivity } from '@/lib/create-activity-context';
 export default function LocationScreen() {
   const router = useRouter();
   const { data, updateData } = useCreateActivity();
+  const [choosingPlace, setChoosingPlace] = useState(false);
 
   const handleNext = () => {
     if (data.address.trim()) {
@@ -37,7 +41,7 @@ export default function LocationScreen() {
       >
         <CreateActivityHeader
           step={4}
-          totalSteps={5}
+          totalSteps={6}
           title="Место проведения"
         />
 
@@ -54,7 +58,7 @@ export default function LocationScreen() {
               <TextInput
                 style={styles.input}
                 value={data.address}
-                onChangeText={(text) => updateData({ address: text })}
+                onChangeText={(text) => updateData({ address: text, lat: 0, lon: 0 })}
                 placeholder="Улица, дом или название места"
                 placeholderTextColor={COLORS.textSecondary}
               />
@@ -62,12 +66,8 @@ export default function LocationScreen() {
             <Text style={styles.hint}>Укажите адрес или название места проведения</Text>
           </View>
 
-          <View style={styles.infoCard}>
-            <MaterialIcons name="info-outline" size={20} color={COLORS.textSecondary} />
-            <Text style={styles.infoText}>
-              Карта временно недоступна. Укажите адрес текстом, и участники смогут найти место.
-            </Text>
-          </View>
+          <PrimaryButton title="Выбрать существующее место" onPress={() => setChoosingPlace(true)} />
+          <Text style={styles.hint}>Можно выбрать площадку или повторно использовать адрес другой активности.</Text>
 
           <View style={styles.examplesSection}>
             <Text style={styles.examplesTitle}>Примеры:</Text>
@@ -95,11 +95,34 @@ export default function LocationScreen() {
           </View>
         </View>
       </KeyboardAvoidingView>
+      <Modal visible={choosingPlace} transparent animationType="slide" onRequestClose={() => setChoosingPlace(false)}>
+        <View style={styles.overlay}>
+          <Pressable style={StyleSheet.absoluteFill} accessibilityRole="button" accessibilityLabel="Закрыть выбор места" onPress={() => setChoosingPlace(false)} />
+          <View style={styles.sheet}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.label}>Выберите место</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Отмена выбора места" onPress={() => setChoosingPlace(false)} style={styles.close}>
+                <MaterialIcons name="close" size={24} color={COLORS.ink} />
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={styles.contentContainer} keyboardShouldPersistTaps="handled">
+              {choosingPlace && <PlaceList picking onSelect={place => {
+                updateData({ address: place.demo ? `${place.name}, ${place.address}` : place.address, lat: place.lat ?? 0, lon: place.lon ?? 0 });
+                setChoosingPlace(false);
+              }} />}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  sheet: { height: '85%', backgroundColor: COLORS.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  pickerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20 },
+  close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   safe: {
     flex: 1,
     backgroundColor: COLORS.bg,

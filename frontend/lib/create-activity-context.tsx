@@ -1,19 +1,11 @@
 import React, { createContext, useContext, useState, type ReactNode } from 'react';
+import { randomUUID } from 'expo-crypto';
 
-// Sport types matching database CHECK constraint
-export type SportType = 
-  | 'football'
-  | 'basketball'
-  | 'volleyball'
-  | 'tennis'
-  | 'badminton'
-  | 'running'
-  | 'cycling'
-  | 'swimming'
-  | 'parkour'
-  | 'other';
+import type { SportType } from '@/constants/sports';
+export type { SportType } from '@/constants/sports';
 
 export type CreateActivityData = {
+  requestId: string;
   sport: SportType | null;
   title: string;
   description: string;
@@ -33,14 +25,15 @@ type CreateActivityContextType = {
 };
 
 const initialData: CreateActivityData = {
+  requestId: '',
   sport: null,
   title: '',
   description: '',
   date: null,
   time: '18:00',
   address: '',
-  lat: 55.7558,
-  lon: 37.6173,
+  lat: 0,
+  lon: 0,
   maxParticipants: 10,
   imageUri: null,
 };
@@ -48,14 +41,14 @@ const initialData: CreateActivityData = {
 const CreateActivityContext = createContext<CreateActivityContextType | null>(null);
 
 export function CreateActivityProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<CreateActivityData>(initialData);
+  const [data, setData] = useState<CreateActivityData>(() => ({ ...initialData, requestId: randomUUID() }));
 
   const updateData = (updates: Partial<CreateActivityData>) => {
     setData((prev) => ({ ...prev, ...updates }));
   };
 
   const resetData = () => {
-    setData(initialData);
+    setData({ ...initialData, requestId: randomUUID() });
   };
 
   return (

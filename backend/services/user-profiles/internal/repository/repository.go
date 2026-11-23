@@ -3,9 +3,10 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 func OpenDB(dsn string) (*sql.DB, error) {
@@ -36,19 +37,36 @@ func Migrate(db *sql.DB) error {
 }
 
 type UserProfile struct {
-	UserID         string
-	Username       string
-	AvatarURL      sql.NullString
-	Gender         sql.NullString
-	BirthDate      sql.NullTime
-	FavoriteSports string
-	Version        int64
-	UpdatedAt      time.Time
+	SetGender         bool
+	SetBirthDate      bool
+	SetFavoriteSports bool
+	UserID            string
+	Username          string
+	AvatarURL         sql.NullString
+	Gender            sql.NullString
+	BirthDate         sql.NullTime
+	FavoriteSports    string
+	Version           int64
+	UpdatedAt         time.Time
 }
 
 type Repository struct{ db *sql.DB }
 
 func New(db *sql.DB) *Repository { return &Repository{db: db} }
+
+var ErrUsernameExists = errors.New("USERNAME_ALREADY_EXISTS")
+
+// Registration is idempotent by user ID. Replayed events must never overwrite
+// an existing profile's name, avatar, preferences or version.
+func (r *Repository) Create(ctx context.Context, userID, username string) error {
+	_, err := r.db.ExecContext(ctx, `INSERT INTO user_profiles (user_id, username)
+		VALUES ($1,$2) ON CONFLICT (user_id) DO NOTHING`, userID, username)
+	var constraint *pq.Error
+	if errors.As(err, &constraint) && constraint.Code == "23505" && constraint.Constraint == "uq_username" {
+		return ErrUsernameExists
+	}
+	return err
+}
 
 func (r *Repository) Upsert(ctx context.Context, p *UserProfile) (int64, error) {
 	favSports := p.FavoriteSports
@@ -64,16 +82,13 @@ func (r *Repository) Upsert(ctx context.Context, p *UserProfile) (int64, error) 
 		ON CONFLICT (user_id) DO UPDATE SET
 			username        = EXCLUDED.username,
 			avatar_url      = COALESCE(EXCLUDED.avatar_url,      user_profiles.avatar_url),
-			gender          = COALESCE(EXCLUDED.gender,          user_profiles.gender),
-			birth_date      = COALESCE(EXCLUDED.birth_date,      user_profiles.birth_date),
-			favorite_sports = CASE
-			                    WHEN EXCLUDED.favorite_sports = '[]' THEN user_profiles.favorite_sports
-			                    ELSE EXCLUDED.favorite_sports
-			                  END,
+			gender = CASE WHEN $7 THEN EXCLUDED.gender ELSE user_profiles.gender END,
+			birth_date = CASE WHEN $8 THEN EXCLUDED.birth_date ELSE user_profiles.birth_date END,
+			favorite_sports = CASE WHEN $9 THEN EXCLUDED.favorite_sports ELSE user_profiles.favorite_sports END,
 			version         = user_profiles.version + 1,
 			updated_at      = now()
 		RETURNING version`,
-		p.UserID, p.Username, p.AvatarURL, p.Gender, p.BirthDate, favSports,
+		p.UserID, p.Username, p.AvatarURL, p.Gender, p.BirthDate, favSports, p.SetGender, p.SetBirthDate, p.SetFavoriteSports,
 	).Scan(&newVersion)
 
 	return newVersion, err

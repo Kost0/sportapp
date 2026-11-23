@@ -29,6 +29,14 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		switch err {
 		case service.ErrEmailExists:
 			response.BadRequest(w, "EMAIL_ALREADY_EXISTS", "email is already taken")
+		case service.ErrUsernameExists:
+			response.BadRequest(w, "USERNAME_ALREADY_EXISTS", "username is already taken")
+		case service.ErrInvalidRegistration:
+			response.BadRequest(w, "INVALID_REGISTRATION", "invalid email, username or password")
+		case service.ErrRegistrationIncomplete:
+			response.BadRequest(w, "REGISTRATION_INCOMPLETE", "retry registration with the original email, password and username")
+		case service.ErrRegistrationUnavailable:
+			response.Err(w, http.StatusServiceUnavailable, "REGISTRATION_UNAVAILABLE", "profile creation could not be confirmed; retry registration with the same details")
 		default:
 			response.Internal(w)
 		}
@@ -58,6 +66,8 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		switch err {
 		case service.ErrInvalidCreds:
 			response.BadRequest(w, "INVALID_CREDENTIALS", "invalid email or password")
+		case service.ErrRegistrationIncomplete:
+			response.BadRequest(w, "REGISTRATION_INCOMPLETE", "finish registration before signing in")
 		default:
 			response.Internal(w)
 		}

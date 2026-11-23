@@ -1,8 +1,11 @@
+import { CapacityInput } from '@/components/create-activity/capacity-input';
+import { ScheduleInput, scheduleDate } from '@/components/create-activity/schedule-input';
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Image,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,7 +20,7 @@ import { SportIcon } from "../../components/sport-icon";
 import { StatusBadge } from "../../components/status-badge";
 import { PrimaryButton, SecondaryButton } from "../../components/ui-buttons";
 import { COLORS } from "../../constants/colors";
-import type { ActivityDetail } from "@/lib/api/activities";
+import type { ActivityDetail, UpdateActivityInput } from "@/lib/api/activities";
 import { getActivity, joinActivity, leaveActivity, updateActivity, reportActivity } from "@/lib/api/activities";
 import { ApiError } from "@/lib/api/client";
 import type { PublicProfile } from "@/lib/api/profile";
@@ -35,12 +38,14 @@ export default function ActivityDetailsScreen() {
   const params = useLocalSearchParams<Params>();
   const id = normalizeId(params.id);
 
-  const { token, logout } = useAuth();
+  const { token, userId: viewerId, logout } = useAuth();
   const [activity, setActivity] = useState<ActivityDetail | null>(null);
   const [organizer, setOrganizer] = useState<PublicProfile | null>(null);
   const [participantProfiles, setParticipantProfiles] = useState<PublicProfile[]>([]);
   const [busy, setBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
+  const actionLock = useRef(false);
+  const [editCapacityValid, setEditCapacityValid] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -55,6 +60,7 @@ export default function ActivityDetailsScreen() {
     description: string;
   } | null>(null);
   const [reportReason, setReportReason] = useState('');
+  const isOrganizer = Boolean(viewerId && activity?.organizerId === viewerId);
 
   const startsAt = useMemo(
     () => (activity ? formatStartsAt(activity.date) : null),
@@ -67,26 +73,21 @@ export default function ActivityDetailsScreen() {
     let cancelled = false;
     setBusy(true);
     setError(null);
+    setActivity(null);
+    setOrganizer(null);
 
     getActivity(token, id)
       .then((res) => {
         if (cancelled) return;
         setActivity(res);
-        
-        // Load organizer profile
-        return getProfileById(token, res.organizerId);
-      })
-      .then((profile) => {
-        if (cancelled) return;
-        if (profile) setOrganizer(profile);
       })
       .catch((e: unknown) => {
         if (cancelled) return;
         if (e instanceof ApiError) {
           if (e.status === 401) logout();
-          setError(`${e.code}: ${e.message}`);
+          setError(e.code === 'CAPACITY_BELOW_PARTICIPANTS' ? 'Лимит не может быть меньше текущего числа участников.' : e.code === 'INVALID_ACTIVITY' ? 'Проверьте название, вид спорта, будущую дату и лимит участников.' : `${e.code}: ${e.message}`);
         } else {
-          setError('Failed to load activity');
+          setError('Не удалось загрузить активность.');
         }
       })
       .finally(() => {
@@ -98,6 +99,19 @@ export default function ActivityDetailsScreen() {
       cancelled = true;
     };
   }, [id, token, logout]);
+
+  // Profiles are optional display information. Missing/slow profile lookups
+  // must not block the activity or determine the creator's permission to edit.
+  useEffect(() => {
+    if (!activity?.organizerId || !token) return;
+    let cancelled = false;
+    const fallback: PublicProfile = { userId: activity.organizerId, username: 'Организатор', favoriteSports: [] };
+    setOrganizer(fallback);
+    void getProfileById(token, activity.organizerId)
+      .then(profile => { if (!cancelled) setOrganizer(profile); })
+      .catch(() => { /* Keep the neutral placeholder if the profile is unavailable. */ });
+    return () => { cancelled = true; };
+  }, [activity?.organizerId, token]);
 
   // Load participant profiles
   useEffect(() => {
@@ -111,12 +125,14 @@ export default function ActivityDetailsScreen() {
 
     Promise.all(
       activity.participants.map(p => 
-        getProfileById(token, p.userId).catch(() => null)
+        getProfileById(token, p.userId).catch(() => ({
+          userId: p.userId, username: p.role === 'ORGANIZER' ? 'Организатор' : 'Участник', favoriteSports: [],
+        }))
       )
     )
       .then((profiles) => {
         if (cancelled) return;
-        setParticipantProfiles(profiles.filter((p): p is PublicProfile => p !== null));
+        setParticipantProfiles(profiles);
       })
       .catch(() => {
         // Ignore errors for participant profiles
@@ -129,76 +145,63 @@ export default function ActivityDetailsScreen() {
 
   const canJoin = useMemo(() => {
     if (!activity) return false;
+    if (isOrganizer) return false;
     if (activity.status !== 'OPEN') return false;
     if (activity.myRole) return false;
-    if (activity.spotsLeft <= 0) return false;
+    if (activity.maxParticipants !== 0 && activity.spotsLeft <= 0) return false;
     return true;
-  }, [activity]);
+  }, [activity, isOrganizer]);
 
   const canLeave = useMemo(() => {
     if (!activity) return false;
-    if (activity.myRole === 'PARTICIPANT') return true;
+    if (!isOrganizer && activity.myRole === 'PARTICIPANT') return true;
     return false;
-  }, [activity]);
+  }, [activity, isOrganizer]);
 
   const onJoin = async () => {
-    if (!id || !token) return;
+    if (!id || !token || actionLock.current) return;
+    actionLock.current = true;
     setActionBusy(true);
     setError(null);
     try {
-      const res = await joinActivity(token, id);
-      setActivity((prev) =>
-        prev
-          ? {
-              ...prev,
-              spotsLeft: res.spotsLeft,
-              version: res.activityVersion,
-              myRole: res.myRole,
-            }
-          : prev
-      );
+      await joinActivity(token, id);
+      setActivity(await getActivity(token, id));
     } catch (e: unknown) {
       if (e instanceof ApiError) {
         if (e.status === 401) logout();
-        setError(`${e.code}: ${e.message}`);
+        setError(e.code === 'CAPACITY_BELOW_PARTICIPANTS' ? 'Лимит не может быть меньше текущего числа участников.' : e.code === 'INVALID_ACTIVITY' ? 'Проверьте название, вид спорта, будущую дату и лимит участников.' : `${e.code}: ${e.message}`);
       } else {
         setError('Join failed');
       }
     } finally {
+      actionLock.current = false;
       setActionBusy(false);
     }
   };
 
    const onLeave = async () => {
-     if (!id || !token || !activity) return;
+     if (!id || !token || !activity || actionLock.current) return;
+     actionLock.current = true;
      setActionBusy(true);
      setError(null);
      try {
        await leaveActivity(token, id);
-       // Backend returns void, update state locally
-       setActivity((prev) =>
-         prev
-           ? {
-               ...prev,
-               spotsLeft: prev.spotsLeft + 1,
-               myRole: null,
-             }
-           : prev
-       );
+       setActivity(await getActivity(token, id));
      } catch (e: unknown) {
        if (e instanceof ApiError) {
          if (e.status === 401) logout();
-         setError(`${e.code}: ${e.message}`);
+         setError(e.code === 'CAPACITY_BELOW_PARTICIPANTS' ? 'Лимит не может быть меньше текущего числа участников.' : e.code === 'INVALID_ACTIVITY' ? 'Проверьте название, вид спорта, будущую дату и лимит участников.' : `${e.code}: ${e.message}`);
        } else {
          setError('Leave failed');
        }
      } finally {
-       setActionBusy(false);
+       actionLock.current = false;
+      setActionBusy(false);
      }
    };
 
    const onEdit = async () => {
-     if (!activity) return;
+     if (!activity || !isOrganizer) return;
      setEditData({
        title: activity.title,
        sport: activity.sport,
@@ -209,71 +212,57 @@ export default function ActivityDetailsScreen() {
        maxParticipants: activity.maxParticipants,
        description: activity.description,
      });
+     setEditCapacityValid(true);
+     setError(null);
      setShowEditModal(true);
    };
 
    const onSaveEdit = async () => {
-     if (!id || !token || !activity || !editData) return;
+     if (!id || !token || !activity || !isOrganizer || !editData || !editCapacityValid || actionLock.current) return;
+     actionLock.current = true;
      setActionBusy(true);
      setError(null);
      try {
-       const res = await updateActivity(
-         token,
-         id,
-         activity.organizerId,
-         editData
-       );
-       // Update activity with new data
-       setActivity((prev) =>
-         prev
-           ? {
-               ...prev,
-               title: editData.title,
-               sport: editData.sport,
-               lat: editData.lat,
-               lon: editData.lon,
-               address: editData.address,
-               date: editData.date,
-               maxParticipants: editData.maxParticipants,
-               description: editData.description,
-               version: res.version,
-             }
-           : prev
-       );
+       const changes = Object.fromEntries(Object.entries(editData).filter(([key, value]) =>
+         value !== activity[key as keyof ActivityDetail])) as UpdateActivityInput;
+       await updateActivity(token, id, changes);
+       setActivity(await getActivity(token, id));
        setShowEditModal(false);
      } catch (e: unknown) {
        if (e instanceof ApiError) {
          if (e.status === 401) logout();
-         setError(`${e.code}: ${e.message}`);
+         setError(e.code === 'CAPACITY_BELOW_PARTICIPANTS' ? 'Лимит не может быть меньше текущего числа участников.' : e.code === 'INVALID_ACTIVITY' ? 'Проверьте название, вид спорта, будущую дату и лимит участников.' : `${e.code}: ${e.message}`);
        } else {
          setError('Update failed');
        }
      } finally {
-       setActionBusy(false);
+       actionLock.current = false;
+      setActionBusy(false);
      }
    };
 
    const onReport = async () => {
-     if (!id || !token) return;
+     if (!id || !token || !reportReason.trim() || actionLock.current) return;
+     actionLock.current = true;
      setActionBusy(true);
      setError(null);
      try {
        await reportActivity(token, {
          activityId: id,
-         reporterId: token, // Assuming token contains user ID for simplicity
-         reason: reportReason,
+         reason: reportReason.trim(),
        });
        setShowReportModal(false);
        setReportReason('');
      } catch (e: unknown) {
        if (e instanceof ApiError) {
          if (e.status === 401) logout();
-         setError(`${e.code}: ${e.message}`);
+         setError(e.code === 'CAPACITY_BELOW_PARTICIPANTS' ? 'Лимит не может быть меньше текущего числа участников.' : e.code === 'INVALID_ACTIVITY' ? 'Проверьте название, вид спорта, будущую дату и лимит участников.' : `${e.code}: ${e.message}`);
        } else {
          setError('Report failed');
        }
      } finally {
-       setActionBusy(false);
+       actionLock.current = false;
+      setActionBusy(false);
      }
    };
 
@@ -337,7 +326,7 @@ export default function ActivityDetailsScreen() {
         <View style={styles.heroWrap} />
 
         <View style={styles.titleRow}>
-          <Text style={styles.activityTitle}>{activity.sport}</Text>
+          <Text style={styles.activityTitle}>{activity.title}</Text>
           <View style={styles.sportIconWrap}>
             <SportIcon sport={activity.sport} size={24} color={COLORS.surface} />
           </View>
@@ -407,20 +396,20 @@ export default function ActivityDetailsScreen() {
             </View>
           )}
           <Text style={styles.spotsText}>
-            Осталось мест: {Math.max(activity.spotsLeft, 0)} из {activity.maxParticipants}
+            {activity.maxParticipants === 0 ? 'Без ограничений по числу участников' : `Осталось мест: ${Math.max(activity.spotsLeft, 0)} из ${activity.maxParticipants}`}
           </Text>
         </View>
 
          <View style={styles.buttonsRow}>
            <View style={styles.buttonCol}>
              <PrimaryButton
-               title={activity.myRole ? "Вы участник" : actionBusy ? "…" : "Присоединиться"}
+               title={isOrganizer ? "Вы организатор" : activity.myRole ? "Вы участник" : actionBusy ? "…" : "Присоединиться"}
                onPress={onJoin}
                disabled={!canJoin || actionBusy}
              />
            </View>
            <View style={styles.buttonCol}>
-             {activity.myRole === 'ORGANIZER' ? (
+             {isOrganizer ? (
                <PrimaryButton
                  title={actionBusy ? "…" : "Редактировать"}
                  onPress={onEdit}
@@ -429,7 +418,7 @@ export default function ActivityDetailsScreen() {
              ) : (
                <SecondaryButton
                  title={actionBusy ? "…" : "Пожаловаться"}
-                 onPress={() => setShowReportModal(true)}
+                 onPress={() => { setError(null); setShowReportModal(true); }}
                  disabled={actionBusy}
                />
              )}
@@ -458,15 +447,16 @@ export default function ActivityDetailsScreen() {
 
         {/* Edit Activity Modal */}
         {showEditModal ? (
+          <Modal visible transparent animationType="slide" onRequestClose={() => { if (!actionBusy) setShowEditModal(false); }}>
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+            <View testID="edit-dialog" style={styles.modalContent} accessibilityViewIsModal>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Редактировать активность</Text>
-                <Pressable onPress={() => setShowEditModal(false)} style={styles.modalClose}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Закрыть редактирование" disabled={actionBusy} onPress={() => setShowEditModal(false)} style={styles.modalClose}>
                   <MaterialIcons name="close" size={24} color={COLORS.textSecondary} />
                 </Pressable>
               </View>
-              <ScrollView contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <TextInput
                   placeholder="Название"
                   value={editData?.title || ''}
@@ -506,80 +496,85 @@ export default function ActivityDetailsScreen() {
                   onChangeText={text => setEditData(prev => prev ? {...prev, address: text} : null)}
                   style={styles.modalInput}
                 />
-                <TextInput
-                  placeholder="Дата и время (YYYY-MM-DDTHH:mm:ss)"
-                  value={editData?.date || ''}
-                  onChangeText={text => setEditData(prev => prev ? {...prev, date: text} : null)}
-                  style={styles.modalInput}
-                />
-                <TextInput
-                  placeholder="Макс. участников"
-                  value={editData?.maxParticipants?.toString() || ''}
-                  onChangeText={text => {
-                    const num = parseInt(text, 10);
-                    setEditData(prev => prev ? {...prev, maxParticipants: isNaN(num) ? 1 : num} : null);
-                  }}
-                  style={styles.modalInput}
-                  keyboardType="numeric"
-                />
+                {editData && <ScheduleInput date={new Date(editData.date)} time={(() => {
+                  const date = new Date(editData.date);
+                  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+                })()} quickDays={false} disabled={actionBusy} onChange={(date, time) => {
+                  const next = scheduleDate(date, time);
+                  if (next) setEditData(prev => prev ? { ...prev, date: next.toISOString() } : null);
+                }} />}
+                <CapacityInput value={editData?.maxParticipants ?? 10} disabled={actionBusy} onValidityChange={setEditCapacityValid}
+                  onChange={maxParticipants => setEditData(prev => prev ? { ...prev, maxParticipants } : null)} />
                 <TextInput
                   placeholder="Описание"
                   value={editData?.description || ''}
                   onChangeText={text => setEditData(prev => prev ? {...prev, description: text} : null)}
                   style={styles.modalInputMultiline}
                   multiline
-                  minHeight={80}
                 />
               </ScrollView>
+              {error && <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text>}
               <View style={styles.modalActions}>
                 <SecondaryButton
                   title="Отмена"
                   onPress={() => setShowEditModal(false)}
+                  disabled={actionBusy}
                 />
                 <PrimaryButton
                   title="Сохранить"
                   onPress={onSaveEdit}
+                  loading={actionBusy}
+                  disabled={!editCapacityValid || !editData || (editData.date !== activity.date &&
+                    (!Number.isFinite(new Date(editData.date).getTime()) || new Date(editData.date).getTime() <= Date.now()))}
                 />
               </View>
             </View>
           </View>
+          </Modal>
         ) : null}
 
         {/* Report Activity Modal */}
         {showReportModal ? (
+          <Modal visible transparent animationType="slide" onRequestClose={() => { if (!actionBusy) setShowReportModal(false); }}>
           <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
+            <View testID="report-dialog" style={styles.modalContent} accessibilityViewIsModal>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Пожаловаться на активность</Text>
-                <Pressable onPress={() => setShowReportModal(false)} style={styles.modalClose}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Закрыть жалобу" disabled={actionBusy} onPress={() => setShowReportModal(false)} style={styles.modalClose}>
                   <MaterialIcons name="close" size={24} color={COLORS.textSecondary} />
                 </Pressable>
               </View>
-              <ScrollView contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <Text>
                   Пожалуйста, укажите причину жалобы на эту активность.
                 </Text>
                 <TextInput
                   placeholder="Причина жалобы"
+                  maxLength={2000}
+                  editable={!actionBusy}
                   value={reportReason}
                   onChangeText={setReportReason}
                   style={styles.modalInputMultiline}
                   multiline
-                  minHeight={100}
                 />
               </ScrollView>
+              {error && <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text>}
               <View style={styles.modalActions}>
                 <SecondaryButton
                   title="Отмена"
                   onPress={() => setShowReportModal(false)}
+                  disabled={actionBusy}
                 />
                 <PrimaryButton
                   title="Отправить жалобу"
                   onPress={onReport}
+                  loading={actionBusy}
+                  disabled={!reportReason.trim() || reportReason.trim().length > 2000}
                 />
               </View>
             </View>
           </View>
+          </Modal>
         ) : null}
        </ScrollView>
       </SafeAreaView>
@@ -752,11 +747,14 @@ const styles = StyleSheet.create({
   buttonsRow: {
     marginTop: 16,
     flexDirection: "row",
+    flexWrap: 'wrap',
     alignItems: "stretch",
     gap: 12,
   },
   buttonCol: {
     flex: 1,
+    flexBasis: 150,
+    minWidth: 150,
   },
   moreWrap: {
     marginTop: 22,
@@ -806,6 +804,7 @@ const styles = StyleSheet.create({
    modalContent: {
      width: '90%',
      maxWidth: 400,
+     maxHeight: '90%',
      backgroundColor: COLORS.surface,
      borderRadius: 20,
    },
@@ -817,16 +816,20 @@ const styles = StyleSheet.create({
      alignItems: 'center',
    },
    modalTitle: {
+     flex: 1,
+     minWidth: 0,
      fontSize: 18,
      fontWeight: '600',
      color: COLORS.textPrimary,
    },
    modalClose: {
+     flexShrink: 0,
      padding: 8,
    },
    modalBody: {
      paddingHorizontal: 20,
      paddingVertical: 16,
+     gap: 12,
    },
    modalInput: {
      height: 46,
@@ -853,8 +856,7 @@ const styles = StyleSheet.create({
      textAlignVertical: 'top',
    },
    modalActions: {
-     flexDirection: 'row',
-     justifyContent: 'flex-end',
+     flexDirection: 'column',
      paddingHorizontal: 20,
      paddingVertical: 16,
      gap: 12,

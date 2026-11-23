@@ -28,7 +28,7 @@ func (c *Consumer) Handle(data []byte) error {
 	defer cancel()
 
 	switch base.EventType {
-	case "activity.created":
+	case "activity.created", "activity.snapshot":
 		var ev kafka.ActivityCreated
 
 		if err := json.Unmarshal(data, &ev); err != nil {
@@ -45,11 +45,12 @@ func (c *Consumer) Handle(data []byte) error {
 				Type:        "Point",
 				Coordinates: []float64{ev.Lon, ev.Lat},
 			},
-			Address:   ev.Address,
-			Date:      ev.Date,
-			SpotsLeft: ev.SpotsLeft,
-			Status:    ev.Status,
-			Version:   ev.Version,
+			Address:         ev.Address,
+			Date:            ev.Date,
+			SpotsLeft:       ev.SpotsLeft,
+			MaxParticipants: ev.MaxParticipants,
+			Status:          ev.Status,
+			Version:         ev.Version,
 		})
 
 	case "activity.updated":
@@ -90,7 +91,7 @@ func (c *Consumer) Handle(data []byte) error {
 			return err
 		}
 
-		return c.store.IncrSpotsLeft(ctx, ev.ActivityID, -1, ev.Version)
+		return c.store.SetMembershipState(ctx, ev.ActivityID, ev.SpotsLeft, ev.Version)
 
 	case "activity.participant_left":
 		var ev kafka.ActivityParticipantLeft
@@ -98,7 +99,7 @@ func (c *Consumer) Handle(data []byte) error {
 			return err
 		}
 
-		return c.store.IncrSpotsLeft(ctx, ev.ActivityID, 1, ev.Version)
+		return c.store.SetMembershipState(ctx, ev.ActivityID, ev.SpotsLeft, ev.Version)
 
 	case "activity.deleted":
 		var ev kafka.ActivityDeleted
@@ -106,7 +107,7 @@ func (c *Consumer) Handle(data []byte) error {
 			return err
 		}
 
-		return c.store.Delete(ctx, ev.ActivityID)
+		return c.store.Delete(ctx, ev.ActivityID, ev.Version)
 
 	default:
 		log.Printf("map-activities: unknown event %q — skipping", base.EventType)

@@ -18,7 +18,7 @@ type SkeletonProps = {
   /** Height of the skeleton bar */
   height?: number;
   /** Width - number for fixed, string for percentage */
-  width?: number | string;
+  width?: ViewStyle['width'];
   /** Border radius */
   rounded?: 'none' | 'sm' | 'md' | 'lg' | 'full';
   /** Optional style overrides */

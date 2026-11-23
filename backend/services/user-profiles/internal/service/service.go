@@ -10,13 +10,17 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"sportapp/shared/kafka"
 	"sportapp/user-profiles/internal/repository"
 )
 
+var ErrInvalidProfile = errors.New("INVALID_PROFILE")
+
 var ErrNotFound = errors.New("PROFILE_NOT_FOUND")
+var ErrUsernameExists = repository.ErrUsernameExists
 
 type KafkaPublisher interface {
 	Publish(ctx context.Context, event interface{}) error
@@ -57,6 +61,14 @@ func (s *Service) GetByUserID(ctx context.Context, userID string) (*ProfileDTO, 
 	return toDTO(p), nil
 }
 
+func (s *Service) Create(ctx context.Context, userID, username string) error {
+	username = strings.TrimSpace(username)
+	if userID == "" || username == "" || len([]rune(username)) > 100 {
+		return ErrInvalidProfile
+	}
+	return s.repo.Create(ctx, userID, username)
+}
+
 type PublicProfileDTO struct {
 	UserID         string   `json:"userId"`
 	Username       string   `json:"username"`
@@ -88,23 +100,31 @@ func (s *Service) GetPublicByID(ctx context.Context, targetUserID string) (*Publ
 type UpdateInput struct {
 	UserID         string
 	Username       string
-	Gender         string
-	BirthDate      string
+	Gender         *string
+	BirthDate      *string
 	FavoriteSports []string
 }
 
 // Update saves profile changes and returns the new version.
 func (s *Service) Update(ctx context.Context, in UpdateInput) (int64, error) {
-	p := &repository.UserProfile{UserID: in.UserID, Username: in.Username}
-
-	if in.Gender != "" {
-		p.Gender = sql.NullString{String: in.Gender, Valid: true}
+	in.Username = strings.TrimSpace(in.Username)
+	if in.Username == "" || len([]rune(in.Username)) > 100 {
+		return 0, ErrInvalidProfile
 	}
-	if in.BirthDate != "" {
-		t, err := time.Parse("2006-01-02", in.BirthDate)
-		if err == nil {
-			p.BirthDate = sql.NullTime{Time: t, Valid: true}
+	p := &repository.UserProfile{UserID: in.UserID, Username: in.Username,
+		SetGender: in.Gender != nil, SetBirthDate: in.BirthDate != nil, SetFavoriteSports: in.FavoriteSports != nil}
+	if in.Gender != nil {
+		if *in.Gender != "" && *in.Gender != "MALE" && *in.Gender != "FEMALE" && *in.Gender != "OTHER" {
+			return 0, ErrInvalidProfile
 		}
+		p.Gender = sql.NullString{String: *in.Gender, Valid: *in.Gender != ""}
+	}
+	if in.BirthDate != nil && *in.BirthDate != "" {
+		date, err := time.Parse("2006-01-02", *in.BirthDate)
+		if err != nil || *in.BirthDate > time.Now().Format("2006-01-02") {
+			return 0, ErrInvalidProfile
+		}
+		p.BirthDate = sql.NullTime{Time: date, Valid: true}
 	}
 	if in.FavoriteSports != nil {
 		b, _ := json.Marshal(in.FavoriteSports)

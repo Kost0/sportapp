@@ -18,7 +18,7 @@ func main() {
 	dbDSN := getenv("DB_DSN", "postgres://postgres:postgres@localhost:5432/profiles_db?sslmode=disable")
 	kafkaBrokers := strings.Split(getenv("KAFKA_BROKERS", "localhost:9092"), ",")
 	avatarDir := getenv("AVATAR_DIR", "/tmp/avatars")
-	baseURL := getenv("BASE_URL", "http://localhost:8084")
+	baseURL := getenv("BASE_URL", "")
 	listenAddr := getenv("LISTEN_ADDR", ":8084")
 
 	db, err := repository.OpenDB(dbDSN)
@@ -57,6 +57,7 @@ func main() {
 	h := handler.New(svc)
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/internal/profile/create", h.Create)
 	mux.HandleFunc("/internal/profile/get", h.Get)
 	mux.HandleFunc("/internal/profile/get-by-id", h.GetByID)
 	mux.HandleFunc("/internal/profile/update", h.Update)

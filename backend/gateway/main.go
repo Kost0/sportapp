@@ -4,6 +4,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"strings"
 
@@ -19,6 +21,11 @@ func main() {
 	authAddr := getenv("AUTH_ADDR", "http://localhost:8081")
 
 	mux := http.NewServeMux()
+	profilesURL, err := url.Parse(getenv("USER_PROFILES_ADDR", "http://localhost:8084"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	mux.Handle("/avatars/", httputil.NewSingleHostReverseProxy(profilesURL))
 	mux.HandleFunc("/", makeHandler(jwtSecret, viewsAddr, authAddr))
 
 	c := cors.New(cors.Options{
@@ -65,12 +72,12 @@ func makeHandler(jwtSecret, viewsAddr, authAddr string) http.HandlerFunc {
 			return
 		}
 
-		req, err := http.NewRequest(http.MethodPost, viewsAddr+path, r.Body)
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, viewsAddr+path, r.Body)
 		if err != nil {
 			response.Internal(w)
 			return
 		}
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Content-Type", r.Header.Get("Content-Type"))
 		req.Header.Set("X-User-Id", userID)
 		req.Header.Set("X-User-Role", role)
 

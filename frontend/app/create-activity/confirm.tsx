@@ -1,30 +1,18 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CreateActivityHeader } from '@/components/create-activity/header';
 import { SportIcon } from '@/components/sport-icon';
 import { PrimaryButton, SecondaryButton } from '@/components/ui-buttons';
 import { COLORS } from '@/constants/colors';
+import { sportLabel } from '@/constants/sports';
 import { createActivity } from '@/lib/api/activities';
 import { ApiError } from '@/lib/api/client';
 import { useAuth } from '@/lib/auth/auth-context';
-import { useCreateActivity, type SportType } from '@/lib/create-activity-context';
-
-const SPORT_LABELS: Record<SportType, string> = {
-  basketball: 'Баскетбол',
-  football: 'Футбол',
-  volleyball: 'Волейбол',
-  tennis: 'Теннис',
-  badminton: 'Бадминтон',
-  running: 'Бег',
-  cycling: 'Велосипед',
-  swimming: 'Плавание',
-  parkour: 'Паркур',
-  other: 'Другое',
-};
+import { useCreateActivity } from '@/lib/create-activity-context';
 
 const formatDate = (date: Date): string => {
   const months = [
@@ -38,13 +26,19 @@ const formatDate = (date: Date): string => {
 export default function ConfirmScreen() {
   const router = useRouter();
   const { token, logout } = useAuth();
-  const { data, resetData } = useCreateActivity();
+  const { data } = useCreateActivity();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submitting = useRef(false);
 
   const handleCreate = async () => {
-    if (!token || !data.date || !data.sport) return;
+    if (submitting.current) return;
+    if (!token || !data.date || !data.sport || data.title.trim().length < 3 || !data.address.trim()) {
+      setError('Заполните вид спорта, название, дату и место активности.');
+      return;
+    }
 
+    submitting.current = true;
     setLoading(true);
     setError(null);
 
@@ -52,30 +46,27 @@ export default function ConfirmScreen() {
       const [hours, minutes] = data.time.split(':').map(Number);
       const dateTime = new Date(data.date);
       dateTime.setHours(hours, minutes, 0, 0);
+      if (!Number.isFinite(dateTime.getTime()) || dateTime.getTime() <= Date.now()) {
+        setError('Выберите дату и время в будущем.');
+        submitting.current = false;
+        return;
+      }
 
       await createActivity(token, {
-        title: data.title,
+        requestId: data.requestId,
+        title: data.title.trim(),
         sport: data.sport,
         description: data.description,
         date: dateTime.toISOString(),
-        address: data.address,
+        address: data.address.trim(),
         lat: data.lat,
         lon: data.lon,
         maxParticipants: data.maxParticipants,
       });
 
-      resetData();
-      Alert.alert(
-        'Активность создана!',
-        'Ваша активность успешно опубликована',
-        [
-          {
-            text: 'Отлично',
-            onPress: () => router.replace('/(tabs)'),
-          },
-        ]
-      );
+      router.dismissTo('/(tabs)/activities');
     } catch (e: unknown) {
+      submitting.current = false;
       if (e instanceof ApiError) {
         if (e.status === 401) {
           logout();
@@ -93,9 +84,10 @@ export default function ConfirmScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <CreateActivityHeader
-        step={5}
-        totalSteps={5}
+        step={6}
+        totalSteps={6}
         title="Подтверждение"
+        disabled={loading}
       />
 
       <ScrollView
@@ -109,7 +101,7 @@ export default function ConfirmScreen() {
               <SportIcon sport={data.sport || ''} size={24} color={COLORS.surface} />
             </View>
             <View style={styles.cardHeaderText}>
-              <Text style={styles.sportName}>{data.sport ? SPORT_LABELS[data.sport] : ''}</Text>
+              <Text style={styles.sportName}>{sportLabel(data.sport || '')}</Text>
               <Text style={styles.title}>{data.title}</Text>
             </View>
           </View>
@@ -142,7 +134,7 @@ export default function ConfirmScreen() {
             <MaterialIcons name="people" size={20} color={COLORS.ink} />
             <View style={styles.infoText}>
               <Text style={styles.infoLabel}>Участники</Text>
-              <Text style={styles.infoValue}>до {data.maxParticipants} человек</Text>
+              <Text style={styles.infoValue}>{data.maxParticipants === 0 ? 'Без ограничений' : `до ${data.maxParticipants} человек`}</Text>
             </View>
           </View>
         </View>

@@ -1,36 +1,29 @@
 import { getApiBaseUrl } from '@/lib/api/config';
-import type { ApiEnvelope } from '@/lib/api/types';
-
-export class ApiError extends Error {
-  public readonly code: string;
-  public readonly status: number;
-
-  constructor(message: string, code: string, status: number) {
-    super(message);
-    this.code = code;
-    this.status = status;
-  }
-}
-
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
-
-const parseEnvelope = <T>(v: unknown): ApiEnvelope<T> => {
-  if (!isRecord(v) || typeof v.ok !== 'boolean') {
-    return { ok: false, error: { code: 'BAD_RESPONSE', message: 'invalid server response' } };
-  }
-  if (v.ok === true) {
-    return { ok: true, data: (v as { data: T }).data };
-  }
-
-  const err = isRecord(v.error) ? v.error : null;
-  const code = typeof err?.code === 'string' ? err.code : 'UNKNOWN_ERROR';
-  const message = typeof err?.message === 'string' ? err.message : 'request failed';
-  return { ok: false, error: { code, message } };
-};
+import { ApiError, readApiResponse } from './response';
+export { ApiError } from './response';
+import { session } from '@/lib/auth/session';
+import { Platform } from 'react-native';
 
 type PostOptions = {
   token?: string | null;
   signal?: AbortSignal;
+};
+
+const authorizedFetch = async (url: string, init: RequestInit, opts: PostOptions) => {
+  const authenticated = Boolean(opts.token);
+  const token = authenticated ? await session.accessToken() : null;
+  if (authenticated && !token) throw new ApiError('Session expired', 'UNAUTHORIZED', 401);
+  const send = (accessToken: string | null) => fetch(url, {
+    ...init,
+    signal: opts.signal,
+    headers: { ...init.headers, ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+  });
+  let res = await send(token);
+  if (res.status === 401 && token) {
+    const renewed = await session.refresh(token);
+    if (renewed) res = await send(renewed);
+  }
+  return res;
 };
 
 export const postJson = async <TReq, TRes>(
@@ -44,26 +37,13 @@ export const postJson = async <TReq, TRes>(
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
-
-  const res = await fetch(url, {
+  const res = await authorizedFetch(url, {
     method: 'POST',
     headers,
     body: JSON.stringify(body ?? {}),
-    signal: opts.signal,
-  });
+  }, opts);
 
-  let json: unknown = null;
-  try {
-    json = await res.json();
-  } catch {
-    // ignore
-  }
-
-  const env = parseEnvelope<TRes>(json);
-  if (env.ok) return env.data;
-
-  throw new ApiError(env.error.message, env.error.code, res.status);
+  return readApiResponse<TRes>(res);
 };
 
 export const fetchFormData = async <TRes>(
@@ -80,31 +60,20 @@ export const fetchFormData = async <TRes>(
   const filename = fileUri.split('/').pop() || 'avatar.jpg';
   const fileType = filename.endsWith('.png') ? 'image/png' : 'image/jpeg';
   
-  formData.append('file', {
-    uri: fileUri,
-    name: filename,
-    type: fileType,
-  } as any);
+  if (Platform.OS === 'web') {
+    const file = await fetch(fileUri);
+    const blob = await file.blob();
+    formData.append('file', blob, blob.type === 'image/png' ? 'avatar.png' : 'avatar.jpg');
+  } else {
+    formData.append('file', { uri: fileUri, name: filename, type: fileType } as unknown as Blob);
+  }
 
   const headers: Record<string, string> = {};
-  if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
-
-  const res = await fetch(url, {
+  const res = await authorizedFetch(url, {
     method: 'POST',
     headers,
     body: formData,
-    signal: opts.signal,
-  });
+  }, opts);
 
-  let json: unknown = null;
-  try {
-    json = await res.json();
-  } catch {
-    // ignore
-  }
-
-  const env = parseEnvelope<TRes>(json);
-  if (env.ok) return env.data;
-
-  throw new ApiError(env.error.message, env.error.code, res.status);
+  return readApiResponse<TRes>(res);
 };

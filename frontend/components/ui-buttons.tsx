@@ -34,6 +34,9 @@ export function PrimaryButton({
 
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: isDisabled, busy: Boolean(loading) }}
       onPress={onPress}
       disabled={isDisabled}
       style={({ pressed }) => [
@@ -69,6 +72,9 @@ export function SecondaryButton({
 
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: isDisabled, busy: Boolean(loading) }}
       onPress={onPress}
       disabled={isDisabled}
       style={({ pressed }) => [

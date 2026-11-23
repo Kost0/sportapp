@@ -8,3 +8,5 @@ go.work.sum
 **/vendor/
 .idea
 AGENTS.md
+
+backend/tests/sql/node_modules/

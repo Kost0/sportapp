@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"sportapp/activities/internal/repository"
@@ -10,14 +11,16 @@ import (
 )
 
 var (
-	ErrNotFound            = errors.New("ACTIVITY_NOT_FOUND")
-	ErrNotOpen             = errors.New("ACTIVITY_NOT_OPEN")
-	ErrAlreadyJoined       = errors.New("ALREADY_JOINED")
-	ErrNoSpots             = errors.New("NO_SPOTS_LEFT")
-	ErrCannotJoinOwn       = errors.New("CANNOT_JOIN_OWN_ACTIVITY")
+	ErrInvalidActivity     = errors.New("INVALID_ACTIVITY")
+	ErrInvalidReport       = errors.New("INVALID_REPORT")
+	ErrNotFound            = repository.ErrNotFound
+	ErrNotOpen             = repository.ErrNotOpen
+	ErrAlreadyJoined       = repository.ErrAlreadyJoined
+	ErrNoSpots             = repository.ErrNoSpots
+	ErrCannotJoinOwn       = repository.ErrCannotJoinOwn
 	ErrNotOrganizer        = errors.New("NOT_ORGANIZER")
-	ErrParticipantNotFound = errors.New("PARTICIPANT_NOT_FOUND")
-	ErrCannotLeaveOrg      = errors.New("CANNOT_LEAVE_AS_ORGANIZER")
+	ErrParticipantNotFound = repository.ErrParticipantNotFound
+	ErrCannotLeaveOrg      = repository.ErrCannotLeaveOrg
 )
 
 type KafkaPublisher interface {
@@ -35,6 +38,7 @@ func New(repo *repository.Repository, activitiesPub, usersPub KafkaPublisher) *S
 }
 
 type CreateInput struct {
+	RequestID       string
 	UserID          string
 	Title           string
 	Sport           string
@@ -53,7 +57,17 @@ type CreateResult struct {
 }
 
 func (s *Service) Create(ctx context.Context, in CreateInput) (*CreateResult, error) {
+	in.Title = strings.TrimSpace(in.Title)
+	in.Address = strings.TrimSpace(in.Address)
+	sports := map[string]bool{"football": true, "basketball": true, "volleyball": true, "tennis": true, "badminton": true, "running": true, "cycling": true, "swimming": true, "parkour": true, "other": true}
+	if in.UserID == "" || len([]rune(in.Title)) < 3 || len([]rune(in.Title)) > 200 ||
+		in.Address == "" || len([]rune(in.Address)) > 500 || !sports[in.Sport] ||
+		in.Date.IsZero() || !in.Date.After(time.Now()) || (in.MaxParticipants != 0 && (in.MaxParticipants < 2 || in.MaxParticipants > 1000)) ||
+		in.Lat < -90 || in.Lat > 90 || in.Lon < -180 || in.Lon > 180 || len(in.RequestID) > 100 {
+		return nil, ErrInvalidActivity
+	}
 	a := &repository.Activity{
+		RequestID:       in.RequestID,
 		OrganizerID:     in.UserID,
 		Title:           in.Title,
 		Sport:           in.Sport,
@@ -72,8 +86,6 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*CreateResult, er
 	if err != nil {
 		return nil, err
 	}
-
-	s.repo.AddParticipant(ctx, created.ActivityID, in.UserID, "ORGANIZER")
 
 	s.activitiesPub.Publish(ctx, kafkaevents.ActivityCreated{
 		EventType:       "activity.created",
@@ -143,17 +155,15 @@ func (s *Service) Update(ctx context.Context, userID, activityID string, updates
 		return 0, ErrNotOrganizer
 	}
 
+	if err := validateUpdates(updates); err != nil {
+		return 0, err
+	}
 	newVersion, err := s.repo.UpdateActivity(ctx, activityID, updates)
 	if err != nil {
 		return 0, err
 	}
 
-	s.activitiesPub.Publish(ctx, kafkaevents.ActivityUpdated{
-		EventType:  "activity.updated",
-		ActivityID: activityID,
-		Version:    newVersion,
-		OccurredAt: time.Now(),
-	})
+	s.publishActivityState(ctx, activityID)
 
 	return newVersion, nil
 }
@@ -196,104 +206,20 @@ type JoinResult struct {
 }
 
 func (s *Service) Join(ctx context.Context, userID, activityID string) (*JoinResult, error) {
-	a, err := s.repo.FindByID(ctx, activityID)
-	if err != nil || a == nil {
-		return nil, ErrNotFound
-	}
-	if a.Status != "OPEN" {
-		return nil, ErrNotOpen
-	}
-	if a.OrganizerID == userID {
-		return nil, ErrCannotJoinOwn
-	}
-	if a.SpotsLeft == 0 {
-		return nil, ErrNoSpots
-	}
-
-	existing, err := s.repo.FindParticipant(ctx, activityID, userID)
+	change, err := s.repo.ChangeParticipation(ctx, activityID, userID, true)
 	if err != nil {
 		return nil, err
 	}
-	if existing != nil {
-		return nil, ErrAlreadyJoined
-	}
-
-	spots, newVersion, becameFull, err := s.repo.DecrSpotsLeft(ctx, activityID)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.repo.AddParticipant(ctx, activityID, userID, "PARTICIPANT"); err != nil {
-		return nil, err
-	}
-
-	s.activitiesPub.Publish(ctx, kafkaevents.ActivityParticipantAdded{
-		EventType:  "activity.participant_added",
-		ActivityID: activityID,
-		UserID:     userID,
-		Role:       "PARTICIPANT",
-		SpotsLeft:  spots,
-		Version:    newVersion,
-		OccurredAt: time.Now(),
-	})
-
-	if becameFull {
-		s.activitiesPub.Publish(ctx, kafkaevents.ActivityStatusChanged{
-			EventType:      "activity.status_changed",
-			ActivityID:     activityID,
-			PreviousStatus: "OPEN",
-			NewStatus:      "FULL",
-			Version:        newVersion,
-			OccurredAt:     time.Now(),
-		})
-	}
-
-	s.publishUserActivities(ctx, userID)
-
-	return &JoinResult{ActivityID: activityID, MyRole: "PARTICIPANT", SpotsLeft: spots, ActivityVersion: newVersion}, nil
+	s.publishActivityState(ctx, activityID)
+	return &JoinResult{ActivityID: activityID, MyRole: "PARTICIPANT", SpotsLeft: change.SpotsLeft, ActivityVersion: change.Version}, nil
 }
 
 func (s *Service) Leave(ctx context.Context, userID, activityID string) error {
-	p, err := s.repo.FindParticipant(ctx, activityID, userID)
-	if err != nil || p == nil {
-		return ErrParticipantNotFound
-	}
-
-	if p.Role == "ORGANIZER" {
-		return ErrCannotLeaveOrg
-	}
-
-	if err := s.repo.DeleteParticipant(ctx, activityID, userID); err != nil {
+	if _, err := s.repo.ChangeParticipation(ctx, activityID, userID, false); err != nil {
 		return err
 	}
-	s.repo.AddHistory(ctx, activityID, userID, p.Role, "LEFT")
-
-	spots, newVersion, becameOpen, err := s.repo.IncrSpotsLeft(ctx, activityID)
-	if err != nil {
-		return err
-	}
-
-	s.activitiesPub.Publish(ctx, kafkaevents.ActivityParticipantLeft{
-		EventType:  "activity.participant_left",
-		ActivityID: activityID,
-		UserID:     userID,
-		SpotsLeft:  spots,
-		Version:    newVersion,
-		OccurredAt: time.Now(),
-	})
-
-	if becameOpen {
-		s.activitiesPub.Publish(ctx, kafkaevents.ActivityStatusChanged{
-			EventType:      "activity.status_changed",
-			ActivityID:     activityID,
-			PreviousStatus: "FULL",
-			NewStatus:      "OPEN",
-			Version:        newVersion,
-			OccurredAt:     time.Now(),
-		})
-	}
-
+	s.publishActivityState(ctx, activityID)
 	s.publishUserActivities(ctx, userID)
-
 	return nil
 }
 
@@ -344,43 +270,27 @@ func (s *Service) Report(ctx context.Context, activityID, reporterID, reason str
 		return ErrNotFound
 	}
 
+	reason = strings.TrimSpace(reason)
+	if reporterID == "" || len([]rune(reason)) < 1 || len([]rune(reason)) > 2000 {
+		return ErrInvalidReport
+	}
 	return s.repo.AddReport(ctx, activityID, reporterID, reason)
 }
 
 func (s *Service) publishUserActivities(ctx context.Context, userID string) {
-	participations, err := s.repo.ListUserParticipations(ctx, userID)
+	snapshot, version, err := s.repo.UserActivitiesSnapshot(ctx, userID)
 	if err != nil {
 		return
 	}
-
-	var (
-		items  []kafkaevents.UserActivityItem
-		maxVer int64
-	)
-
-	for _, p := range participations {
-		a, err := s.repo.FindByID(ctx, p.ActivityID)
-		if err != nil || a == nil {
-			continue
-		}
+	items := make([]kafkaevents.UserActivityItem, 0, len(snapshot))
+	for _, a := range snapshot {
 		items = append(items, kafkaevents.UserActivityItem{
-			ActivityID: a.ActivityID,
-			Title:      a.Title,
-			Sport:      a.Sport,
-			Date:       a.Date,
-			Status:     a.Status,
-			MyRole:     p.Role,
+			ActivityID: a.ActivityID, Title: a.Title, Sport: a.Sport,
+			Date: a.Date, Status: a.Status, MyRole: a.MyRole,
 		})
-		if a.Version > maxVer {
-			maxVer = a.Version
-		}
 	}
-
 	s.usersPub.Publish(ctx, kafkaevents.UserActivitiesUpdated{
-		EventType:  "user.activities_updated",
-		UserID:     userID,
-		Activities: items,
-		Version:    maxVer,
-		OccurredAt: time.Now(),
+		EventType: "user.activities_updated", UserID: userID,
+		Activities: items, Version: version, OccurredAt: time.Now(),
 	})
 }

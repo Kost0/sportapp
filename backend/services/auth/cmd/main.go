@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -28,14 +29,15 @@ func main() {
 	var pub service.KafkaPublisher
 	kafkaProd, err := sharedkafka.NewProducer(strings.Split(cfg.kafkaBrokers, ","), "users")
 	if err != nil {
-		log.Printf("WARNING: kafka unavailable (%v) — user.registered will not be published", err)
+		log.Fatalf("kafka configuration: %v", err)
 	} else {
 		defer kafkaProd.Close()
 		pub = kafkaProd
 	}
 
 	repo := repository.New(db)
-	svc := service.New(repo, pub, cfg.jwtSecret, cfg.jwtTTL, cfg.refreshTTL)
+	svc := service.New(repo, pub, service.NewProfilesClient(cfg.profilesAddr), cfg.jwtSecret, cfg.jwtTTL, cfg.refreshTTL)
+	go svc.RunRegistrationEvents(context.Background())
 	h := handler.New(svc)
 
 	mux := http.NewServeMux()
@@ -52,6 +54,7 @@ type appConfig struct {
 	addr         string
 	dbDSN        string
 	kafkaBrokers string
+	profilesAddr string
 	jwtSecret    string
 	jwtTTL       int
 	refreshTTL   int
@@ -62,6 +65,7 @@ func buildConfig() appConfig {
 		addr:         getenv("LISTEN_ADDR", ":8081"),
 		dbDSN:        getenv("DB_DSN", "postgres://postgres:postgres@localhost:5432/auth_db?sslmode=disable"),
 		kafkaBrokers: getenv("KAFKA_BROKERS", "localhost:9092"),
+		profilesAddr: getenv("USER_PROFILES_ADDR", "http://localhost:8084"),
 		jwtSecret:    getenv("JWT_SECRET", "changeme"),
 		jwtTTL:       1,
 		refreshTTL:   30,

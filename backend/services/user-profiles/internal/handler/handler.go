@@ -12,6 +12,30 @@ type Handler struct{ svc *service.Service }
 
 func New(svc *service.Service) *Handler { return &Handler{svc: svc} }
 
+// Only auth calls this internal route; it is not exposed by views/gateway.
+func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UserID   string `json:"userId"`
+		Username string `json:"username"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest(w, "BAD_REQUEST", "invalid registration")
+		return
+	}
+	if err := h.svc.Create(r.Context(), req.UserID, req.Username); err != nil {
+		switch err {
+		case service.ErrUsernameExists:
+			response.BadRequest(w, "USERNAME_ALREADY_EXISTS", "username is already taken")
+		case service.ErrInvalidProfile:
+			response.BadRequest(w, "INVALID_PROFILE", "invalid username")
+		default:
+			response.Internal(w)
+		}
+		return
+	}
+	response.OK(w, map[string]bool{"created": true})
+}
+
 func (h *Handler) Get(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		UserID string `json:"userId"`
@@ -59,8 +83,8 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		UserID         string   `json:"userId"`
 		Username       string   `json:"username"`
-		Gender         string   `json:"gender"`
-		BirthDate      string   `json:"birthDate"`
+		Gender         *string  `json:"gender"`
+		BirthDate      *string  `json:"birthDate"`
 		FavoriteSports []string `json:"favoriteSports"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.UserID == "" {
@@ -75,6 +99,10 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 		FavoriteSports: req.FavoriteSports,
 	})
 	if err != nil {
+		if err == service.ErrInvalidProfile {
+			response.BadRequest(w, "INVALID_PROFILE", "invalid username, gender or birth date")
+			return
+		}
 		response.Internal(w)
 		return
 	}

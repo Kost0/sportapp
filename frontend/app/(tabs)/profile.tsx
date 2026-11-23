@@ -1,3 +1,4 @@
+import { SPORTS, sportLabel } from '@/constants/sports';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
@@ -5,6 +6,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -27,9 +29,11 @@ import { ApiError } from '@/lib/api/client';
 import { getProfile, updateProfile, uploadAvatar, type Profile, type ProfileGender } from '@/lib/api/profile';
 import { useAuth } from '@/lib/auth/auth-context';
 
-const KNOWN_SPORTS = ['Бег', 'Футбол', 'Велосипед'] as const;
+import { isBirthDate } from '@/utils/date-only';
 
-const isIsoDate = (s: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(s);
+const KNOWN_SPORTS = SPORTS.map(sport => sport.label);
+
+const isIsoDate = isBirthDate;
 
 const formatBirthDate = (iso: string): string => {
   if (!isIsoDate(iso)) return iso;
@@ -86,7 +90,7 @@ export default function ProfileScreen() {
       setUsername(p.username ?? '');
       setGender(p.gender ?? '');
       setBirthDate(p.birthDate ?? '');
-      setFavoriteSports(p.favoriteSports ?? []);
+      setFavoriteSports((p.favoriteSports ?? []).map(sportLabel));
     } catch (e: unknown) {
       if (e instanceof ApiError) {
         if (e.status === 401) logout();
@@ -112,10 +116,9 @@ export default function ProfileScreen() {
   }, [load]);
 
   const derivedAge = useMemo(() => {
-    if (typeof profile?.age === 'number' && profile.age > 0) return profile.age;
     const computed = computeAge(birthDate.trim());
     return computed;
-  }, [profile?.age, birthDate]);
+  }, [birthDate]);
 
   const birthSummary = useMemo(() => {
     const iso = birthDate.trim();
@@ -141,6 +144,10 @@ export default function ProfileScreen() {
   }, []);
 
   const handleReset = useCallback(() => {
+    if (Platform.OS === 'web') {
+      if (window.confirm('Сбросить все несохранённые изменения?')) void load();
+      return;
+    }
     Alert.alert(
       'Сбросить изменения?',
       'Все несохраненные изменения будут потеряны.',
@@ -152,7 +159,7 @@ export default function ProfileScreen() {
   }, [load]);
 
   const save = useCallback(async () => {
-    if (!token) return;
+    if (!token || saving || loading) return;
 
     const name = username.trim();
     if (!name) {
@@ -162,7 +169,7 @@ export default function ProfileScreen() {
 
     const birth = birthDate.trim();
     if (birth && !isIsoDate(birth)) {
-      setError('BAD_REQUEST: Дата рождения должна быть в формате YYYY-MM-DD');
+      setError('BAD_REQUEST: Укажите существующую дату рождения не позднее сегодняшней');
       return;
     }
 
@@ -173,8 +180,8 @@ export default function ProfileScreen() {
       await updateProfile(token, {
         username: name,
         favoriteSports: favoriteSports ?? [],
-        ...(gender ? { gender: gender as Exclude<ProfileGender, ''> } : {}),
-        ...(birth ? { birthDate: birth } : {}),
+        gender,
+        birthDate: birth,
       });
 
       await load();
@@ -188,7 +195,7 @@ export default function ProfileScreen() {
     } finally {
       setSaving(false);
     }
-  }, [token, username, gender, birthDate, favoriteSports, load, logout]);
+  }, [token, username, gender, birthDate, favoriteSports, load, logout, saving, loading]);
 
   const avatarUrl = profile?.avatarUrl;
   const avatarVisible = Boolean(avatarUrl && /^https?:\/\//.test(avatarUrl));
@@ -228,11 +235,12 @@ export default function ProfileScreen() {
       <View style={styles.header}>
         <Text style={[TEXT_STYLES.h3, { color: colors.ink }]}>Профиль</Text>
         <View style={styles.headerIcons}>
-          <Pressable onPress={load} hitSlop={10} disabled={loading || saving}>
+          <Pressable onPress={load} accessibilityRole="button" accessibilityLabel="Обновить профиль" style={styles.headerButton} disabled={loading || saving}>
             <MaterialIcons name="refresh" size={20} color={colors.textSecondary} />
           </Pressable>
-          <Pressable onPress={logout} hitSlop={10} disabled={saving}>
+          <Pressable onPress={logout} accessibilityRole="button" accessibilityLabel="Выйти" style={styles.headerButton}>
             <MaterialIcons name="logout" size={20} color={colors.textSecondary} />
+            <Text style={[TEXT_STYLES.bodySm, { color: colors.ink }]}>Выйти</Text>
           </Pressable>
         </View>
       </View>
@@ -300,8 +308,10 @@ export default function ProfileScreen() {
             <DatePickerInput
               value={birthDate}
               onChange={setBirthDate}
+              disabled={loading || saving}
               placeholder="Выберите дату рождения"
             />
+            {birthSummary ? <Text style={[TEXT_STYLES.bodySm, { color: colors.textSecondary }]}>{birthSummary}</Text> : null}
           </LabeledBlock>
         </ProfileCard>
 
@@ -322,7 +332,7 @@ export default function ProfileScreen() {
         </ProfileCard>
 
         <View style={styles.actions}>
-          <PrimaryButton title="Сохранить" onPress={save} loading={saving} />
+          <PrimaryButton title="Сохранить" onPress={save} loading={saving} disabled={loading} />
           <SecondaryButton title="Сбросить" onPress={handleReset} disabled={loading || saving} />
         </View>
       </ScrollView>
@@ -348,6 +358,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
+  },
+  headerButton: {
+    minHeight: 44,
+    minWidth: 44,
+    paddingHorizontal: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
   },
   divider: {
     height: 1,

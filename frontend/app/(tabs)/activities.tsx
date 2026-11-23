@@ -1,7 +1,8 @@
+import { SPORTS } from '@/constants/sports';
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useMemo, useState, useCallback, useSyncExternalStore } from "react";
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActivityCard } from "@/components/activity-card";
@@ -16,6 +17,7 @@ import { RADIUS } from "@/constants/radius";
 import type { ActivityListItem } from "@/lib/api/activities";
 import { listActivities } from "@/lib/api/activities";
 import { ApiError } from "@/lib/api/client";
+import { ActivityPager } from "@/lib/activity-pager";
 import { useAuth } from "@/lib/auth/auth-context";
 
 type SortOption = 'date' | 'distance' | 'popular';
@@ -26,14 +28,7 @@ const SORT_OPTIONS: { key: SortOption; label: string }[] = [
   { key: 'popular', label: 'Популярные' },
 ];
 
-const SPORT_FILTERS: FilterOption[] = [
-  { key: 'running', label: 'Бег', icon: 'directions-run' },
-  { key: 'cycling', label: 'Велосипед', icon: 'directions-bike' },
-  { key: 'football', label: 'Футбол', icon: 'sports-soccer' },
-  { key: 'basketball', label: 'Баскетбол', icon: 'sports-basketball' },
-  { key: 'tennis', label: 'Теннис', icon: 'sports-tennis' },
-  { key: 'swimming', label: 'Плавание', icon: 'pool' },
-];
+const SPORT_FILTERS: FilterOption[] = SPORTS.map(sport => ({ key: sport.id, label: sport.label, icon: sport.icon }));
 
 const DATE_FILTERS: FilterOption[] = [
   { key: 'today', label: 'Сегодня' },
@@ -45,98 +40,49 @@ const DATE_FILTERS: FilterOption[] = [
 export default function ActivitiesScreen() {
   const router = useRouter();
   const { token, logout } = useAuth();
-  const [items, setItems] = useState<ActivityListItem[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Filter states
+  const params = useLocalSearchParams<{ sport?: string }>();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSport, setSelectedSport] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const [selectedSport, setSelectedSport] = useState(params.sport ?? '');
+  const [selectedDate, setSelectedDate] = useState('all');
   const [sortBy, setSortBy] = useState<SortOption>('date');
   const [showSortMenu, setShowSortMenu] = useState(false);
-  
   const colors = getColor();
 
-  const canLoad = useMemo(() => Boolean(token), [token]);
-  const PAGE_SIZE = 20;
+  useEffect(() => { setSelectedSport(params.sport ?? ''); }, [params.sport]);
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
-  const loadItems = useCallback(async (offset = 0, isRefresh = false) => {
-    if (!token) return;
-
-    if (isRefresh) {
-      setRefreshing(true);
-    } else {
-      setBusy(true);
-    }
-    setError(null);
-
-    try {
-      const res = await listActivities(token, PAGE_SIZE, offset, {
-        sport: selectedSport || undefined,
-        date: selectedDate !== 'all' ? selectedDate : undefined,
-        search: searchQuery || undefined,
-      });
-      if (isRefresh) {
-        setItems(res.items ?? []);
-      } else {
-        setItems(prev => [...prev, ...(res.items ?? [])]);
-      }
-      setHasMore((res.items?.length ?? 0) === PAGE_SIZE);
-    } catch (e: unknown) {
-      if (e instanceof ApiError) {
-        if (e.status === 401) logout();
-        setError(`${e.code}: ${e.message}`);
-      } else {
-        setError('Failed to load activities');
-      }
-    } finally {
-      if (isRefresh) {
-        setRefreshing(false);
-      } else {
-        setBusy(false);
-      }
-    }
-  }, [token, logout, selectedSport, selectedDate, searchQuery]);
+  const pager = useMemo(() => new ActivityPager<ActivityListItem>((offset, signal) =>
+    listActivities(token!, 20, offset, {
+      sport: selectedSport || undefined,
+      date: selectedDate === 'all' ? undefined : selectedDate,
+      search: search || undefined,
+    }, signal)), [token, selectedSport, selectedDate, search]);
+  const { items, loading: busy, refreshing, error: requestError } = useSyncExternalStore(pager.subscribe, pager.snapshot, pager.snapshot);
+  const error = requestError instanceof ApiError ? `${requestError.code}: ${requestError.message}`
+    : requestError ? 'Не удалось загрузить активности' : null;
 
   useEffect(() => {
-    loadItems(0, true);
-  }, [loadItems]);
+    if (requestError instanceof ApiError && requestError.status === 401) logout();
+  }, [requestError, logout]);
+  useFocusEffect(useCallback(() => {
+    if (token) void pager.refresh();
+    return pager.cancel;
+  }, [pager, token]));
 
-  const onRefresh = useCallback(() => {
-    loadItems(0, true);
-  }, [loadItems]);
-
-  const onEndReached = useCallback(() => {
-    if (!busy && hasMore) {
-      loadItems(items.length, false);
-    }
-  }, [busy, hasMore, loadItems, items.length]);
-
-  const handleSearchSubmit = () => {
-    // Apply search
-    loadItems(0, true);
-  };
-
-  const handleSportFilterChange = (sport: string | string[]) => {
-    const value = Array.isArray(sport) ? sport[0] || '' : sport;
-    setSelectedSport(value);
-    loadItems(0, true);
-  };
-
-  const handleDateFilterChange = (date: string | string[]) => {
-    const value = Array.isArray(date) ? date[0] || 'all' : date;
-    setSelectedDate(value);
-    loadItems(0, true);
-  };
-
+  const onRefresh = () => { void pager.refresh(); };
+  const onEndReached = () => { void pager.loadMore(); };
+  const handleSearchSubmit = () => setSearch(searchQuery.trim());
+  const handleSportFilterChange = (sport: string | string[]) =>
+    setSelectedSport(Array.isArray(sport) ? sport[0] || '' : sport);
+  const handleDateFilterChange = (date: string | string[]) =>
+    setSelectedDate(Array.isArray(date) ? date[0] || 'all' : date);
   const handleSortChange = (sort: SortOption) => {
     setSortBy(sort);
     setShowSortMenu(false);
-    // Apply sort - for now just reload
-    loadItems(0, true);
   };
 
   const handleActivityPress = (activityId: string) => {
@@ -292,7 +238,7 @@ export default function ActivitiesScreen() {
             colors={[colors.ink]}
           />
         }
-        ListHeaderComponent={renderHeader}
+        ListHeaderComponent={renderHeader()}
         ListEmptyComponent={
           busy ? (
             <View style={styles.loadingContainer}>

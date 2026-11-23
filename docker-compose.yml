@@ -92,6 +92,7 @@ services:
       JWT_SECRET: "${JWT_SECRET:-changeme}"
       VIEWS_ADDR: "http://views:8083"
       AUTH_ADDR: "http://auth:8081"
+      USER_PROFILES_ADDR: "http://user-profiles:8084"
     depends_on: [views, auth]
 
   auth:
@@ -104,6 +105,7 @@ services:
       DB_DSN: "postgres://postgres:postgres@postgres-auth:5432/auth_db?sslmode=disable"
       JWT_SECRET: "${JWT_SECRET:-changeme}"
       KAFKA_BROKERS: "kafka:9092"
+      USER_PROFILES_ADDR: "http://user-profiles:8084"
     depends_on:
       postgres-auth:
         condition: service_healthy
@@ -150,7 +152,7 @@ services:
       DB_DSN: "postgres://postgres:postgres@postgres-profiles:5432/profiles_db?sslmode=disable"
       KAFKA_BROKERS: "kafka:9092"
       AVATAR_DIR: "/data/avatars"
-      BASE_URL: "http://user-profiles:8084"
+      BASE_URL: ""
     volumes: [avatars:/data/avatars]
     depends_on:
       postgres-profiles:

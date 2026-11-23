@@ -21,6 +21,7 @@ export function SelectablePill({ label, selected, layout = 'hug', style, colorSc
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
+      aria-pressed={selected}
       style={({ pressed }) => [
         styles.base,
         layout === 'fill' ? styles.fill : styles.hug,

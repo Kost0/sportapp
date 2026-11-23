@@ -48,6 +48,7 @@ func main() {
 	mux.HandleFunc("/internal/activities/create", h.Create)
 	mux.HandleFunc("/internal/activities/get", h.Get)
 	mux.HandleFunc("/internal/activities/list", h.List)
+	mux.HandleFunc("/internal/places/list", h.Places)
 	mux.HandleFunc("/internal/activities/list-past", h.ListPast)
 	mux.HandleFunc("/internal/activities/update", h.Update)
 	mux.HandleFunc("/internal/activities/delete", h.Delete)

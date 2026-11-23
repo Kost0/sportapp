@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
-import { COLORS, getColor, type ColorScheme } from "@/constants/colors";
+import { getColor, type ColorScheme } from "@/constants/colors";
 import { TEXT_STYLES } from "@/constants/typography";
 import { RADIUS } from "@/constants/radius";
 import { SPACING } from "@/constants/spacing";
@@ -11,18 +11,14 @@ import { PressableCard } from "./ui/card";
 
 type Props = {
   activity: MyActivityItem;
-  organizerName?: string;
-  organizerAvatar?: string;
-  distance?: string;
+  avatarUrl?: string;
   onPress: (activityId: string) => void;
   colorScheme?: ColorScheme;
 };
 
 export function MyActivityCard({
   activity,
-  organizerName,
-  organizerAvatar,
-  distance,
+  avatarUrl,
   onPress,
   colorScheme,
 }: Props) {
@@ -40,28 +36,25 @@ export function MyActivityCard({
         <View style={styles.header}>
           <View style={styles.titleRow}>
             <Text numberOfLines={1} style={[TEXT_STYLES.h3, { color: colors.textPrimary, flexShrink: 1 }]}>
-              {activity.sport}
+              {activity.title}
             </Text>
             <View style={[styles.iconWrap, { backgroundColor: colors.ink }]}>
               <SportIcon sport={activity.sport} size={18} color={colors.surface} />
             </View>
           </View>
-          {distance ? (
-            <Text style={[TEXT_STYLES.labelSm, { color: colors.ink }]}>{distance}</Text>
-          ) : null}
         </View>
 
         <View style={styles.organizerRow}>
           <Image
             source={{
               uri:
-                organizerAvatar ||
+                avatarUrl ||
                 `https://api.dicebear.com/7.x/identicon/png?seed=${activity.activityId}`,
             }}
             style={styles.avatar}
           />
           <Text numberOfLines={1} style={[TEXT_STYLES.bodySm, { color: colors.textPrimary, flexShrink: 1 }]}>
-            {organizerName || "Организатор"}
+            {activity.myRole === 'ORGANIZER' ? 'Вы организатор' : 'Вы участник'}
           </Text>
           <View style={[styles.bullet, { backgroundColor: colors.inkMuted }]} />
           <Text numberOfLines={1} style={[TEXT_STYLES.bodySm, { color: colors.textPrimary, flexShrink: 1 }]}>

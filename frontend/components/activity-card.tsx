@@ -1,3 +1,4 @@
+import { sportLabel } from '@/constants/sports';
 import React, { useMemo } from "react";
 import {
   Image,
@@ -34,9 +35,10 @@ export function ActivityCard({ activity, onPress, colorScheme }: Props) {
   );
 
   const spotsText = useMemo(() => {
+    if (activity.maxParticipants === 0) return "Без ограничений";
     if (activity.status !== "OPEN" && activity.spotsLeft === 0) return "мест нет";
     return `осталось ${Math.max(activity.spotsLeft, 0)} мест`;
-  }, [activity.spotsLeft, activity.status]);
+  }, [activity.spotsLeft, activity.status, activity.maxParticipants]);
 
   const hasImage = activity.imageUrl && /^https?:\/\//.test(activity.imageUrl);
 
@@ -50,7 +52,7 @@ export function ActivityCard({ activity, onPress, colorScheme }: Props) {
         <View style={[styles.topRow, hasImage && styles.topRowWithImage]}>
           <View style={styles.titleRow}>
             <Text numberOfLines={1} style={[TEXT_STYLES.h3, { color: colors.textPrimary, flexShrink: 1 }]}>
-              {activity.sport}
+              {sportLabel(activity.sport)}
             </Text>
             <View style={[styles.iconWrap, { backgroundColor: colors.ink }]}>
               <SportIcon sport={activity.sport} size={18} color={colors.surface} />

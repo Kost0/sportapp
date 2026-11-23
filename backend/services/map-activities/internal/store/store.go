@@ -10,23 +10,24 @@ import (
 )
 
 type GeoPoint struct {
-	Type        string    `bson:"type`
+	Type        string    `bson:"type"`
 	Coordinates []float64 `bson:"coordinates"`
 }
 
 type MapActivity struct {
-	ID          string    `bson:"_id"`
-	ActivityID  string    `bson:"activityId"`
-	OrganizerID string    `bson:"organizerId"`
-	Title       string    `bson:"title"`
-	Sport       string    `bson:"sport"`
-	Location    GeoPoint  `bson:"location"`
-	Address     string    `bson:"address"`
-	Date        time.Time `bson:"date"`
-	SpotsLeft   int       `bson:"spotsLeft"`
-	Status      string    `bson:"status"`
-	Version     int64     `bson:"version"`
-	UpdatedAt   time.Time `bson:"updatedAt"`
+	ID              string    `bson:"_id"`
+	ActivityID      string    `bson:"activityId"`
+	OrganizerID     string    `bson:"organizerId"`
+	Title           string    `bson:"title"`
+	Sport           string    `bson:"sport"`
+	Location        GeoPoint  `bson:"location"`
+	Address         string    `bson:"address"`
+	Date            time.Time `bson:"date"`
+	SpotsLeft       int       `bson:"spotsLeft"`
+	MaxParticipants int       `bson:"maxParticipants"`
+	Status          string    `bson:"status"`
+	Version         int64     `bson:"version"`
+	UpdatedAt       time.Time `bson:"updatedAt"`
 }
 
 type Store struct{ col *mongo.Collection }
@@ -52,6 +53,7 @@ type SearchFilter struct {
 
 func (s *Store) Search(ctx context.Context, f SearchFilter) ([]MapActivity, error) {
 	filter := bson.M{
+		"deleted": bson.M{"$ne": true},
 		"location": bson.M{
 			"$near": bson.M{
 				"$geometry":    bson.M{"type": "Point", "coordinates": []float64{f.Lon, f.Lat}},
@@ -81,9 +83,25 @@ func (s *Store) Search(ctx context.Context, f SearchFilter) ([]MapActivity, erro
 }
 
 func (s *Store) Insert(ctx context.Context, a MapActivity) error {
-	a.UpdatedAt = time.Now()
-	_, err := s.col.InsertOne(ctx, a)
+	fields := bson.M{"activityId": a.ActivityID, "organizerId": a.OrganizerID,
+		"title": a.Title, "sport": a.Sport, "location": a.Location, "address": a.Address, "date": a.Date,
+		"maxParticipants": a.MaxParticipants, "spotsLeft": a.SpotsLeft, "status": a.Status, "deleted": false}
+	return s.upsertVersioned(ctx, a.ActivityID, a.Version, fields, false)
+}
 
+func (s *Store) upsertVersioned(ctx context.Context, id string, version int64, fields bson.M, allowEqual bool) error {
+	op := "$lt"
+	if allowEqual {
+		op = "$lte"
+	}
+	newer := bson.M{op: bson.A{bson.M{"$ifNull": bson.A{"$version", int64(-1)}}, version}}
+	fields["version"] = version
+	fields["updatedAt"] = time.Now()
+	updates := bson.M{}
+	for key, value := range fields {
+		updates[key] = bson.M{"$cond": bson.A{newer, bson.M{"$literal": value}, "$" + key}}
+	}
+	_, err := s.col.UpdateOne(ctx, bson.M{"_id": id}, mongo.Pipeline{bson.D{{Key: "$set", Value: updates}}}, options.Update().SetUpsert(true))
 	return err
 }
 
@@ -98,22 +116,17 @@ func (s *Store) UpdateFields(ctx context.Context, activityID string, fields bson
 	return err
 }
 
-func (s *Store) IncrSpotsLeft(ctx context.Context, activityID string, delta int, eventVersion int64) error {
-	_, err := s.col.UpdateOne(ctx,
-		bson.M{"_id": activityID, "version": bson.M{"$lt": eventVersion}},
-		bson.M{
-			"$inc": bson.M{"spotsLeft": delta},
-			"$set": bson.M{"version": eventVersion, "updatedAt": time.Now()},
-		},
-	)
-
+func (s *Store) SetMembershipState(ctx context.Context, activityID string, spots int, eventVersion int64) error {
+	status := bson.M{"$cond": bson.A{bson.M{"$and": bson.A{bson.M{"$ne": bson.A{"$maxParticipants", 0}}, spots == 0}}, "FULL", "OPEN"}}
+	_, err := s.col.UpdateOne(ctx, bson.M{"_id": activityID, "version": bson.M{"$lt": eventVersion}},
+		mongo.Pipeline{bson.D{{Key: "$set", Value: bson.M{"spotsLeft": spots, "status": status, "version": eventVersion, "updatedAt": time.Now()}}}})
 	return err
 }
 
-// SetStatus updates status only if stored version < eventVersion.
+// Legacy paired status events can share a version with a membership event.
 func (s *Store) SetStatus(ctx context.Context, activityID, status string, eventVersion int64) error {
 	_, err := s.col.UpdateOne(ctx,
-		bson.M{"_id": activityID, "version": bson.M{"$lt": eventVersion}},
+		bson.M{"_id": activityID, "version": bson.M{"$lte": eventVersion}},
 		bson.M{"$set": bson.M{
 			"status":    status,
 			"version":   eventVersion,
@@ -124,8 +137,7 @@ func (s *Store) SetStatus(ctx context.Context, activityID, status string, eventV
 	return err
 }
 
-func (s *Store) Delete(ctx context.Context, activityID string) error {
-	_, err := s.col.DeleteOne(ctx, bson.M{"_id": activityID})
-
-	return err
+func (s *Store) Delete(ctx context.Context, activityID string, version int64) error {
+	// Keep a tombstone so a delayed snapshot cannot resurrect a deleted activity.
+	return s.upsertVersioned(ctx, activityID, version, bson.M{"deleted": true}, true)
 }

@@ -16,6 +16,7 @@ func New(svc *service.Service) *Handler { return &Handler{svc: svc} }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	var req struct {
+		RequestID       string    `json:"requestId"`
 		UserID          string    `json:"userId"`
 		Title           string    `json:"title"`
 		Sport           string    `json:"sport"`
@@ -32,6 +33,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res, err := h.svc.Create(r.Context(), service.CreateInput{
+		RequestID:       req.RequestID,
 		UserID:          req.UserID,
 		Title:           req.Title,
 		Sport:           req.Sport,
@@ -43,7 +45,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		Description:     req.Description,
 	})
 	if err != nil {
-		response.Internal(w)
+		mapErr(w, err)
 		return
 	}
 
@@ -137,21 +139,22 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		Offset: req.Offset,
 	})
 	if err != nil {
-		response.Internal(w)
+		mapErr(w, err)
 		return
 	}
 
 	type itemDTO struct {
-		ActivityID  string    `json:"activityId"`
-		Title       string    `json:"title"`
-		Sport       string    `json:"sport"`
-		Address     string    `json:"address"`
-		Date        time.Time `json:"date"`
-		SpotsLeft   int       `json:"spotsLeft"`
-		Status      string    `json:"status"`
-		Version     int64     `json:"version"`
-		OrganizerID string    `json:"organizerId"`
-		ImageURL    string    `json:"imageUrl,omitempty"`
+		ActivityID      string    `json:"activityId"`
+		Title           string    `json:"title"`
+		Sport           string    `json:"sport"`
+		Address         string    `json:"address"`
+		Date            time.Time `json:"date"`
+		SpotsLeft       int       `json:"spotsLeft"`
+		MaxParticipants int       `json:"maxParticipants"`
+		Status          string    `json:"status"`
+		Version         int64     `json:"version"`
+		OrganizerID     string    `json:"organizerId"`
+		ImageURL        string    `json:"imageUrl,omitempty"`
 	}
 
 	var dtos []itemDTO
@@ -163,7 +166,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		}
 		dtos = append(dtos, itemDTO{
 			a.ActivityID, a.Title, a.Sport, a.Address, a.Date,
-			a.SpotsLeft, a.Status, a.Version, a.OrganizerID, imageURL,
+			a.SpotsLeft, a.MaxParticipants, a.Status, a.Version, a.OrganizerID, imageURL,
 		})
 	}
 
@@ -207,14 +210,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 
 	newVersion, err := h.svc.Update(r.Context(), userID, activityID, req)
 	if err != nil {
-		switch err {
-		case service.ErrNotFound:
-			response.BadRequest(w, "ACTIVITY_NOT_FOUND", "activity not found")
-		case service.ErrNotOrganizer:
-			response.BadRequest(w, "NOT_ORGANIZER", "only the organizer can perform this action")
-		default:
-			response.Internal(w)
-		}
+		mapErr(w, err)
 		return
 	}
 
@@ -272,14 +268,14 @@ func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) Report(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		ActivityID string `json:"activityId"`
-		ReporterID string `json:"reporterId"`
+		UserID     string `json:"userId"`
 		Reason     string `json:"reason"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.BadRequest(w, "BAD_REQUEST", err.Error())
 		return
 	}
-	if err := h.svc.Report(r.Context(), req.ActivityID, req.ReporterID, req.Reason); err != nil {
+	if err := h.svc.Report(r.Context(), req.ActivityID, req.UserID, req.Reason); err != nil {
 		mapErr(w, err)
 		return
 	}
@@ -334,6 +330,14 @@ func (h *Handler) AdminDelete(w http.ResponseWriter, r *http.Request) {
 
 func mapErr(w http.ResponseWriter, err error) {
 	switch err {
+	case repository.ErrCapacityBelowParticipants:
+		response.BadRequest(w, "CAPACITY_BELOW_PARTICIPANTS", "limit cannot be smaller than the current participant count")
+	case service.ErrInvalidReport:
+		response.BadRequest(w, "INVALID_REPORT", "provide a report reason between 1 and 2000 characters")
+	case service.ErrInvalidActivity:
+		response.BadRequest(w, "INVALID_ACTIVITY", "check title, sport, future date, address and participant limit")
+	case repository.ErrInvalidFilter:
+		response.BadRequest(w, "INVALID_FILTER", "invalid date or pagination")
 	case service.ErrNotFound:
 		response.BadRequest(w, "ACTIVITY_NOT_FOUND", "activity not found")
 	case service.ErrNotOpen:

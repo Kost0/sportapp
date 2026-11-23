@@ -1,3 +1,4 @@
+import { SPORTS } from '@/constants/sports';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useRouter, type Href } from 'expo-router';
 import React from 'react';
@@ -9,24 +10,7 @@ import { PrimaryButton } from '@/components/ui-buttons';
 import { COLORS } from '@/constants/colors';
 import { useCreateActivity, type SportType } from '@/lib/create-activity-context';
 
-type SportOption = {
-  id: SportType;
-  label: string;
-  icon: React.ComponentProps<typeof MaterialIcons>['name'];
-};
 
-const SPORTS: SportOption[] = [
-  { id: 'basketball', label: 'Баскетбол', icon: 'sports-basketball' },
-  { id: 'football', label: 'Футбол', icon: 'sports-soccer' },
-  { id: 'volleyball', label: 'Волейбол', icon: 'sports-volleyball' },
-  { id: 'tennis', label: 'Теннис', icon: 'sports-tennis' },
-  { id: 'badminton', label: 'Бадминтон', icon: 'sports-tennis' },
-  { id: 'running', label: 'Бег', icon: 'directions-run' },
-  { id: 'cycling', label: 'Велосипед', icon: 'directions-bike' },
-  { id: 'swimming', label: 'Плавание', icon: 'pool' },
-  { id: 'parkour', label: 'Паркур', icon: 'terrain' },
-  { id: 'other', label: 'Другое', icon: 'local-activity' },
-];
 
 export default function SelectSportScreen() {
   const router = useRouter();
@@ -51,7 +35,7 @@ export default function SelectSportScreen() {
     <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <CreateActivityHeader
         step={1}
-        totalSteps={5}
+        totalSteps={6}
         title="Выберите вид спорта"
         onBack={handleBack}
       />
@@ -67,6 +51,9 @@ export default function SelectSportScreen() {
             return (
               <Pressable
                 key={sport.id}
+                accessibilityRole="button"
+                accessibilityLabel={sport.label}
+                accessibilityState={{ selected: isSelected }}
                 style={[styles.sportCard, isSelected && styles.sportCardSelected]}
                 onPress={() => handleSelect(sport.id)}
               >

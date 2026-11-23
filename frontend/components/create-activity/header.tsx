@@ -15,9 +15,10 @@ type Props = {
   title: string;
   onBack?: () => void;
   colorScheme?: ColorScheme;
+  disabled?: boolean;
 };
 
-export function CreateActivityHeader({ step, totalSteps, title, onBack, colorScheme }: Props) {
+export function CreateActivityHeader({ step, totalSteps, title, onBack, colorScheme, disabled }: Props) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const scheme = colorScheme ?? 'light';
@@ -34,7 +35,7 @@ export function CreateActivityHeader({ step, totalSteps, title, onBack, colorSch
   return (
     <View style={[styles.container, { backgroundColor: colors.bg, paddingTop: Math.max(insets.top, 12) + 8 }]}>
       <View style={styles.topRow}>
-        <Pressable onPress={handleBack} hitSlop={12} style={styles.backButton}>
+        <Pressable onPress={handleBack} disabled={disabled} accessibilityRole="button" accessibilityLabel="Назад" hitSlop={12} style={styles.backButton}>
           <MaterialIcons name="arrow-back" size={24} color={colors.ink} />
         </Pressable>
         <Text style={[TEXT_STYLES.label, { color: colors.textSecondary }]}>

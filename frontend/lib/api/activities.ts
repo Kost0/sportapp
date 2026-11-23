@@ -9,6 +9,7 @@ export type ActivityListItem = {
   address: string;
   date: string;
   spotsLeft: number;
+  maxParticipants?: number;
   status: ActivityStatus;
   version: number;
   organizerId: string;
@@ -55,7 +56,8 @@ export const listActivities = async (
   token: string,
   limit = 20,
   offset = 0,
-  filters: { sport?: string; date?: string; status?: string; search?: string } = {}
+  filters: { sport?: string; date?: string; status?: string; search?: string } = {},
+  signal?: AbortSignal,
 ) => {
   return postJson<
     { sport?: string; date?: string; status?: string; limit: number; offset: number; search?: string },
@@ -70,7 +72,7 @@ export const listActivities = async (
       status: filters.status,
       search: filters.search,
     },
-    { token }
+    { token, signal }
   );
 };
 
@@ -87,6 +89,7 @@ export const leaveActivity = async (token: string, activityId: string) => {
 };
 
 export type CreateActivityInput = {
+  requestId: string;
   title: string;
   sport: string;
   lat: number;
@@ -127,18 +130,16 @@ export type UpdateActivityResp = {
 export const updateActivity = async (
   token: string,
   activityId: string,
-  userId: string,
   input: UpdateActivityInput
 ) => {
   return postJson<
-    { userId: string; activityId: string } & UpdateActivityInput,
+    { activityId: string } & UpdateActivityInput,
     UpdateActivityResp
-  >('/activities/update', { userId, activityId, ...input }, { token });
+  >('/activities/update', { activityId, ...input }, { token });
 };
 
 export type ReportActivityInput = {
   activityId: string;
-  reporterId: string;
   reason: string;
 };
 

@@ -1,6 +1,7 @@
+import { SPORTS } from '@/constants/sports';
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Image,
   Pressable,
@@ -13,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { MyActivityCard } from "@/components/my-activity-card";
+import { SecondaryButton } from "@/components/ui-buttons";
 import { CategoryCard, type CategoryData } from "@/components/ui/category-card";
 import { HeroCard } from "@/components/ui/hero-card";
 import { SkeletonGroup } from "@/components/ui/skeleton";
@@ -21,32 +23,27 @@ import { COLORS, getColor } from "@/constants/colors";
 import { TEXT_STYLES } from "@/constants/typography";
 import { SPACING, SCREEN } from "@/constants/spacing";
 import { RADIUS } from "@/constants/radius";
-import { getHomeData, type HomeData, type MyActivityItem } from "@/lib/api/home";
+import { getHomeData, type HomeData } from "@/lib/api/home";
 import { ApiError } from "@/lib/api/client";
 import { useAuth } from "@/lib/auth/auth-context";
 
-type TimeFilter = "today" | "3days" | "7days" | "completed";
+type TimeFilter = "all" | "today" | "3days" | "7days" | "completed";
+const PAGE_SIZE = 10;
 
 const TIME_FILTERS: { key: TimeFilter; label: string }[] = [
+  { key: "all", label: "Все" },
   { key: "today", label: "Сегодня" },
   { key: "3days", label: "3 дня" },
   { key: "7days", label: "7 дней" },
   { key: "completed", label: "Завершён" },
 ];
 
-const SPORT_CATEGORIES: CategoryData[] = [
-  { key: "running", label: "Бег", icon: "directions-run", emoji: "🏃" },
-  { key: "cycling", label: "Велосипед", icon: "directions-bike", emoji: "🚴" },
-  { key: "football", label: "Футбол", icon: "sports-soccer", emoji: "⚽" },
-  { key: "basketball", label: "Баскетбол", icon: "sports-basketball", emoji: "🏀" },
-  { key: "tennis", label: "Теннис", icon: "sports-tennis", emoji: "🎾" },
-  { key: "swimming", label: "Плавание", icon: "pool", emoji: "🏊" },
-];
+const SPORT_CATEGORIES: CategoryData[] = SPORTS.map(sport => ({ ...sport, key: sport.id }));
 
 const HERO_SUGGESTIONS = [
-  { sport: "Бег", emoji: "🏃", title: "Хочешь побегать?", subtitle: "Найдем маршрут рядом", action: "Найти маршрут" },
-  { sport: "Футбол", emoji: "⚽", title: "Сыграем в футбол?", subtitle: "Находим партнеров поблизости", action: "Найти игру" },
-  { sport: "Велосипед", emoji: "🚴", title: "Покатаемся?", subtitle: "Открой для себя новые маршруты", action: "Выбрать маршрут" },
+  { sport: "running", emoji: "🏃", title: "Хочешь побегать?", subtitle: "Найдем маршрут рядом", action: "Найти маршрут" },
+  { sport: "football", emoji: "⚽", title: "Сыграем в футбол?", subtitle: "Находим партнеров поблизости", action: "Найти игру" },
+  { sport: "cycling", emoji: "🚴", title: "Покатаемся?", subtitle: "Открой для себя новые маршруты", action: "Выбрать маршрут" },
 ];
 
 export default function HomeScreen() {
@@ -56,8 +53,10 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<TimeFilter>("today");
-  const [heroIndex, setHeroIndex] = useState(0);
+  const [activeFilter, setActiveFilter] = useState<TimeFilter>("all");
+  const [page, setPage] = useState(1);
+  const scrollRef = useRef<ScrollView>(null);
+  const activitiesTop = useRef(0);
   const colors = getColor();
 
   const loadData = useCallback(async (isRefresh = false) => {
@@ -89,9 +88,9 @@ export default function HomeScreen() {
     }
   }, [token, logout]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useFocusEffect(useCallback(() => {
+    void loadData();
+  }, [loadData]));
 
   const onRefresh = useCallback(() => {
     loadData(true);
@@ -134,17 +133,25 @@ export default function HomeScreen() {
       case "completed":
         return activities.filter((a) => a.status === "COMPLETED");
       default:
-        // Default: show only upcoming activities (from now onwards)
-        return activities.filter((a) => new Date(a.date) >= todayStart);
+        return activities;
     }
   }, [homeData?.myActivities, activeFilter]);
 
+  const pageCount = Math.max(1, Math.ceil(filteredActivities.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const visibleActivities = filteredActivities.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  useEffect(() => { setPage(value => Math.min(value, pageCount)); }, [pageCount]);
+  const changePage = (next: number) => {
+    setPage(next);
+    scrollRef.current?.scrollTo({ y: activitiesTop.current, animated: false });
+  };
+
   const handleCategoryPress = (categoryKey: string) => {
-    router.push("/activities");
+    router.push({ pathname: "/activities", params: { sport: categoryKey } });
   };
 
   const handleHeroAction = () => {
-    router.push("/activities");
+    router.push({ pathname: "/activities", params: { sport: HERO_SUGGESTIONS[0].sport } });
   };
 
   const handleNotificationPress = () => {
@@ -163,12 +170,12 @@ export default function HomeScreen() {
     router.push("/create-activity");
   };
 
-  // Get random hero suggestion
-  const heroSuggestion = HERO_SUGGESTIONS[heroIndex % HERO_SUGGESTIONS.length];
+  const heroSuggestion = HERO_SUGGESTIONS[0];
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "left", "right"]}>
       <ScrollView
+        ref={scrollRef}
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
@@ -260,7 +267,7 @@ export default function HomeScreen() {
         </View>
 
         {/* My Activities Section */}
-        <View style={styles.section}>
+        <View style={styles.section} onLayout={event => { activitiesTop.current = event.nativeEvent.layout.y; }}>
           <View style={styles.sectionHeader}>
             <Text style={[TEXT_STYLES.h3, { color: colors.textPrimary }]}>
               Мои активности
@@ -279,7 +286,10 @@ export default function HomeScreen() {
             {TIME_FILTERS.map((filter) => (
               <Pressable
                 key={filter.key}
-                onPress={() => setActiveFilter(filter.key)}
+                accessibilityRole="button"
+                aria-pressed={activeFilter === filter.key}
+                accessibilityState={{ selected: activeFilter === filter.key }}
+                onPress={() => { setActiveFilter(filter.key); setPage(1); }}
                 style={[
                   styles.filterPill,
                   activeFilter === filter.key && styles.filterPillActive,
@@ -303,20 +313,25 @@ export default function HomeScreen() {
             <SkeletonGroup count={2} variant="list-item" />
           ) : filteredActivities.length > 0 ? (
             <View style={styles.activitiesList}>
-              {filteredActivities.map((activity, index) => (
+              {visibleActivities.map((activity, index) => (
                 <View key={activity.activityId}>
                   <MyActivityCard
                     activity={activity}
-                    organizerName={homeData?.user.username}
-                    organizerAvatar={homeData?.user.avatarUrl}
-                    distance="~ 1.3 км"
+                    avatarUrl={homeData?.user.avatarUrl}
                     onPress={handleActivityPress}
                   />
-                  {index < filteredActivities.length - 1 && (
+                  {index < visibleActivities.length - 1 && (
                     <View style={{ height: SCREEN.cardGap }} />
                   )}
                 </View>
               ))}
+              {pageCount > 1 && <View style={styles.pagination}>
+                <Text accessibilityLiveRegion="polite" style={styles.pageLabel}>Страница {currentPage} из {pageCount}</Text>
+                <View style={styles.pageButtons}>
+                  <View style={styles.pageButton}><SecondaryButton title="Предыдущая" disabled={currentPage === 1} onPress={() => changePage(currentPage - 1)} /></View>
+                  <View style={styles.pageButton}><SecondaryButton title="Следующая" disabled={currentPage === pageCount} onPress={() => changePage(currentPage + 1)} /></View>
+                </View>
+              </View>}
             </View>
           ) : (
             <View style={styles.emptyContainer}>
@@ -346,6 +361,10 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  pagination: { marginTop: 16, gap: 12 },
+  pageLabel: { textAlign: 'center', fontSize: 14, color: COLORS.textSecondary },
+  pageButtons: { flexDirection: 'row', gap: 12 },
+  pageButton: { flex: 1, minWidth: 0 },
   safe: {
     flex: 1,
     backgroundColor: COLORS.bg,

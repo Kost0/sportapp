@@ -3,8 +3,21 @@
  * Provides various haptic patterns for different interactions.
  */
 
-import { useCallback } from 'react';
+import React, { useCallback } from 'react';
 import * as Haptics from 'expo-haptics';
+
+/**
+ * withHaptics — HOC to add haptic feedback to pressable components.
+ */
+
+import { type PressableProps , ViewStyle } from 'react-native';
+
+/**
+ * HapticButton — button with built-in haptic feedback.
+ */
+
+import { PrimaryButton as BasePrimaryButton, SecondaryButton as BaseSecondaryButton } from '@/components/ui-buttons';
+
 
 type HapticType = 
   | 'selection'     // Light tap for selections
@@ -72,12 +85,6 @@ export function useHaptics() {
   };
 }
 
-/**
- * withHaptics — HOC to add haptic feedback to pressable components.
- */
-
-import { Pressable, type PressableProps } from 'react-native';
-
 type HapticPressableProps = Omit<PressableProps, 'onPress'> & {
   onPress: () => void;
   hapticType?: HapticType;
@@ -87,7 +94,7 @@ export function withHaptics<P extends HapticPressableProps>(
   Component: React.ComponentType<P>
 ) {
   return function HapticComponent(props: P) {
-    const { onPress, hapticType = 'selection', ...rest } = props;
+    const { onPress, hapticType = 'selection' } = props;
     const haptics = useHaptics();
 
     const handlePress = () => {
@@ -95,16 +102,9 @@ export function withHaptics<P extends HapticPressableProps>(
       onPress();
     };
 
-    return <Component {...rest} onPress={handlePress} />;
+    return <Component {...props} onPress={handlePress} />;
   };
 }
-
-/**
- * HapticButton — button with built-in haptic feedback.
- */
-
-import { PrimaryButton as BasePrimaryButton, SecondaryButton as BaseSecondaryButton } from '@/components/ui-buttons';
-import type { ViewStyle } from 'react-native';
 
 type BaseButtonProps = {
   title: string;

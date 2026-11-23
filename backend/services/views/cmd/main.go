@@ -30,6 +30,7 @@ func main() {
 	mux.HandleFunc("/activities/create", h.Proxy(acts, "/internal/activities/create"))
 	mux.HandleFunc("/activities/get", h.Proxy(acts, "/internal/activities/get"))
 	mux.HandleFunc("/activities/list", h.Proxy(acts, "/internal/activities/list"))
+	mux.HandleFunc("/places/list", h.Proxy(acts, "/internal/places/list"))
 	mux.HandleFunc("/activities/list-past", h.Proxy(acts, "/internal/activities/list-past"))
 	mux.HandleFunc("/activities/report", h.Proxy(acts, "/internal/activities/report"))
 	mux.HandleFunc("/activities/update", h.Proxy(acts, "/internal/activities/update"))

@@ -3,10 +3,18 @@
  * Provides smooth scale and opacity animations on press.
  */
 
-import { useCallback } from 'react';
-import { type View, type StyleProp, type AnimatedStyle } from 'react-native';
-import { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import React, { useCallback } from 'react';
+import { Pressable, type ViewStyle, type StyleProp } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+
+/**
+ * AnimatedCard — card with press animation.
+ */
+
+import { COLORS, getColor, type ColorScheme } from '@/constants/colors';
+import { RADIUS } from '@/constants/radius';
+import { SPACING } from '@/constants/spacing';
 
 type SpringConfig = {
   damping?: number;
@@ -30,7 +38,7 @@ export function useAnimatedPress(
   const scale = useSharedValue(1);
   const opacity = useSharedValue(1);
 
-  const animatedStyle = useAnimatedStyle((): AnimatedStyle<View> => {
+  const animatedStyle = useAnimatedStyle((): ViewStyle => {
     return {
       transform: [{ scale: scale.value }],
       opacity: opacity.value,
@@ -59,14 +67,12 @@ export function useAnimatedPress(
   }, [haptic]);
 
   const onPressIn = useCallback(() => {
-    'worklet';
     scale.value = withSpring(0.96, config);
     opacity.value = withSpring(0.9, config);
     triggerHaptic();
   }, [config, opacity, scale, triggerHaptic]);
 
   const onPressOut = useCallback(() => {
-    'worklet';
     scale.value = withSpring(1, config);
     opacity.value = withSpring(1, config);
   }, [config, opacity, scale]);
@@ -87,9 +93,11 @@ type AnimatedPressableProps = {
   onPress?: () => void;
   onPressIn?: () => void;
   onPressOut?: () => void;
-  style?: StyleProp<AnimatedStyle<View>>;
+  style?: StyleProp<ViewStyle>;
   disabled?: boolean;
 };
+
+const AnimatedTouchable = Animated.createAnimatedComponent(Pressable);
 
 export function AnimatedPressable({
   children,
@@ -112,29 +120,22 @@ export function AnimatedPressable({
   };
 
   return (
-    <Animated.View
+    <AnimatedTouchable
       style={[animatedStyle, style]}
-      onTouchStart={disabled ? undefined : handlePressIn}
-      onTouchEnd={disabled ? undefined : handlePressOut}
-      onTouchCancel={disabled ? undefined : handlePressOut}
+      disabled={disabled}
+      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
     >
       {children}
-    </Animated.View>
+    </AnimatedTouchable>
   );
 }
-
-/**
- * AnimatedCard — card with press animation.
- */
-
-import { COLORS, getColor, type ColorScheme } from '@/constants/colors';
-import { RADIUS } from '@/constants/radius';
-import { SPACING } from '@/constants/spacing';
 
 type AnimatedCardProps = {
   children: React.ReactNode;
   onPress?: () => void;
-  style?: StyleProp<AnimatedStyle<View>>;
+  style?: StyleProp<ViewStyle>;
   colorScheme?: ColorScheme;
 };
 
@@ -147,7 +148,7 @@ export function AnimatedCard({
   const colors = getColor(colorScheme);
   const { animatedStyle, onPressIn, onPressOut } = useAnimatedPress();
 
-  const cardStyle: StyleProp<AnimatedStyle<View>> = [
+  const cardStyle: StyleProp<ViewStyle> = [
     styles.card,
     { backgroundColor: colors.surface },
     animatedStyle,
@@ -156,15 +157,14 @@ export function AnimatedCard({
 
   if (onPress) {
     return (
-      <Animated.View
+      <AnimatedTouchable
         style={cardStyle}
-        onTouchStart={onPressIn}
-        onTouchEnd={onPressOut}
-        onTouchCancel={onPressOut}
-        onTouchEndCapture={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        onPress={onPress}
       >
         {children}
-      </Animated.View>
+      </AnimatedTouchable>
     );
   }
 

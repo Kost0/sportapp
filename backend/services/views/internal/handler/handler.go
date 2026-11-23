@@ -165,17 +165,18 @@ func (h *Handler) Map(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type mapMarker struct {
-		ActivityID  string    `json:"activityId"`
-		OrganizerID string    `json:"organizerId"`
-		Title       string    `json:"title"`
-		Sport       string    `json:"sport"`
-		Lat         float64   `json:"lat"`
-		Lon         float64   `json:"lon"`
-		Address     string    `json:"address"`
-		Date        time.Time `json:"date"`
-		SpotsLeft   int       `json:"spotsLeft"`
-		Status      string    `json:"status"`
-		Version     int64     `json:"version"`
+		ActivityID      string    `json:"activityId"`
+		OrganizerID     string    `json:"organizerId"`
+		Title           string    `json:"title"`
+		Sport           string    `json:"sport"`
+		Lat             float64   `json:"lat"`
+		Lon             float64   `json:"lon"`
+		Address         string    `json:"address"`
+		Date            time.Time `json:"date"`
+		SpotsLeft       int       `json:"spotsLeft"`
+		MaxParticipants int       `json:"maxParticipants"`
+		Status          string    `json:"status"`
+		Version         int64     `json:"version"`
 	}
 	type markersResp struct {
 		Markers []mapMarker `json:"markers"`
@@ -229,25 +230,27 @@ func (h *Handler) Map(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type enrichedMarker struct {
-		ActivityID string      `json:"activityId"`
-		Title      string      `json:"title"`
-		Sport      string      `json:"sport"`
-		Lat        float64     `json:"lat"`
-		Lon        float64     `json:"lon"`
-		Date       time.Time   `json:"date"`
-		SpotsLeft  int         `json:"spotsLeft"`
-		Status     string      `json:"status"`
-		Version    int64       `json:"version"`
-		Organizer  userProfile `json:"organizer"`
+		ActivityID      string      `json:"activityId"`
+		Title           string      `json:"title"`
+		Sport           string      `json:"sport"`
+		Lat             float64     `json:"lat"`
+		Lon             float64     `json:"lon"`
+		Date            time.Time   `json:"date"`
+		SpotsLeft       int         `json:"spotsLeft"`
+		MaxParticipants int         `json:"maxParticipants"`
+		Status          string      `json:"status"`
+		Version         int64       `json:"version"`
+		Organizer       userProfile `json:"organizer"`
 	}
 	type listItem struct {
-		ActivityID string    `json:"activityId"`
-		Title      string    `json:"title"`
-		Sport      string    `json:"sport"`
-		Address    string    `json:"address"`
-		Date       time.Time `json:"date"`
-		SpotsLeft  int       `json:"spotsLeft"`
-		Status     string    `json:"status"`
+		ActivityID      string    `json:"activityId"`
+		Title           string    `json:"title"`
+		Sport           string    `json:"sport"`
+		Address         string    `json:"address"`
+		Date            time.Time `json:"date"`
+		SpotsLeft       int       `json:"spotsLeft"`
+		MaxParticipants int       `json:"maxParticipants"`
+		Status          string    `json:"status"`
 	}
 
 	enriched := make([]enrichedMarker, 0, len(markersResult.Markers))
@@ -259,25 +262,27 @@ func (h *Handler) Map(w http.ResponseWriter, r *http.Request) {
 			org = userProfile{UserID: m.OrganizerID}
 		}
 		enriched = append(enriched, enrichedMarker{
-			ActivityID: m.ActivityID,
-			Title:      m.Title,
-			Sport:      m.Sport,
-			Lat:        m.Lat,
-			Lon:        m.Lon,
-			Date:       m.Date,
-			SpotsLeft:  m.SpotsLeft,
-			Status:     m.Status,
-			Version:    m.Version,
-			Organizer:  org,
+			ActivityID:      m.ActivityID,
+			Title:           m.Title,
+			Sport:           m.Sport,
+			Lat:             m.Lat,
+			Lon:             m.Lon,
+			Date:            m.Date,
+			SpotsLeft:       m.SpotsLeft,
+			MaxParticipants: m.MaxParticipants,
+			Status:          m.Status,
+			Version:         m.Version,
+			Organizer:       org,
 		})
 		list = append(list, listItem{
-			ActivityID: m.ActivityID,
-			Title:      m.Title,
-			Sport:      m.Sport,
-			Address:    m.Address,
-			Date:       m.Date,
-			SpotsLeft:  m.SpotsLeft,
-			Status:     m.Status,
+			ActivityID:      m.ActivityID,
+			Title:           m.Title,
+			Sport:           m.Sport,
+			Address:         m.Address,
+			Date:            m.Date,
+			SpotsLeft:       m.SpotsLeft,
+			MaxParticipants: m.MaxParticipants,
+			Status:          m.Status,
 		})
 	}
 

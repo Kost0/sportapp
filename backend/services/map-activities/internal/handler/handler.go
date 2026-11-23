@@ -49,17 +49,18 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type markerDTO struct {
-		ActivityID  string    `json:"activityId"`
-		OrganizerID string    `json:"organizerId"`
-		Title       string    `json:"title"`
-		Sport       string    `json:"sport"`
-		Lat         float64   `json:"lat"`
-		Lon         float64   `json:"lon"`
-		Address     string    `json:"address"`
-		Date        time.Time `json:"date"`
-		SpotsLeft   int       `json:"spotsLeft"`
-		Status      string    `json:"status"`
-		Version     int64     `json:"version"`
+		ActivityID      string    `json:"activityId"`
+		OrganizerID     string    `json:"organizerId"`
+		Title           string    `json:"title"`
+		Sport           string    `json:"sport"`
+		Lat             float64   `json:"lat"`
+		Lon             float64   `json:"lon"`
+		Address         string    `json:"address"`
+		Date            time.Time `json:"date"`
+		SpotsLeft       int       `json:"spotsLeft"`
+		MaxParticipants int       `json:"maxParticipants"`
+		Status          string    `json:"status"`
+		Version         int64     `json:"version"`
 	}
 
 	dtos := make([]markerDTO, len(markers))
@@ -71,17 +72,18 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 			lat = m.Location.Coordinates[1]
 		}
 		dtos[i] = markerDTO{
-			ActivityID:  m.ActivityID,
-			OrganizerID: m.OrganizerID,
-			Title:       m.Title,
-			Sport:       m.Sport,
-			Lat:         lat,
-			Lon:         lon,
-			Address:     m.Address,
-			Date:        m.Date,
-			SpotsLeft:   m.SpotsLeft,
-			Status:      m.Status,
-			Version:     m.Version,
+			ActivityID:      m.ActivityID,
+			OrganizerID:     m.OrganizerID,
+			Title:           m.Title,
+			Sport:           m.Sport,
+			Lat:             lat,
+			Lon:             lon,
+			Address:         m.Address,
+			Date:            m.Date,
+			SpotsLeft:       m.SpotsLeft,
+			MaxParticipants: m.MaxParticipants,
+			Status:          m.Status,
+			Version:         m.Version,
 		}
 	}
 

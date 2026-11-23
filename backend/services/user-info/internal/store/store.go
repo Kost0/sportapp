@@ -47,78 +47,34 @@ func New(db *mongo.Database) *Store {
 	return &Store{col: col}
 }
 
-func (s *Store) UpsertProfile(ctx context.Context, userID, username, avatarURL string, version int64) error {
-	id := userID + "/profile"
-
-	result, err := s.col.UpdateOne(ctx,
-		bson.M{"_id": id, "version": bson.M{"$lt": version}},
-		bson.M{"$set": bson.M{
-			"userId":    userID,
-			"type":      "profile",
-			"username":  username,
-			"avatarUrl": avatarURL,
-			"version":   version,
-			"updatedAt": time.Now(),
-		}},
-		options.Update().SetUpsert(false),
-	)
-	if err != nil {
-		return err
+// A single atomic update ignores replayed/stale events without an insert race.
+// Literal values also allow user text beginning with '$'.
+func (s *Store) upsertVersioned(ctx context.Context, id string, version int64, fields bson.M) error {
+	newer := bson.M{"$lt": bson.A{bson.M{"$ifNull": bson.A{"$version", int64(-1)}}, version}}
+	fields["version"] = version
+	fields["updatedAt"] = time.Now()
+	updates := bson.M{}
+	for key, value := range fields {
+		updates[key] = bson.M{"$cond": bson.A{newer, bson.M{"$literal": value}, "$" + key}}
 	}
-
-	if result.MatchedCount == 0 {
-		_, err = s.col.UpdateOne(ctx,
-			bson.M{"_id": id, "version": bson.M{"$exists": false}},
-			bson.M{"$setOnInsert": bson.M{
-				"_id":       id,
-				"userId":    userID,
-				"type":      "profile",
-				"username":  username,
-				"avatarUrl": avatarURL,
-				"version":   version,
-				"updatedAt": time.Now(),
-			}},
-			options.Update().SetUpsert(true),
-		)
-	}
-
+	_, err := s.col.UpdateOne(ctx, bson.M{"_id": id},
+		mongo.Pipeline{bson.D{{Key: "$set", Value: updates}}}, options.Update().SetUpsert(true))
 	return err
 }
 
+func (s *Store) UpsertProfile(ctx context.Context, userID, username, avatarURL string, version int64) error {
+	return s.upsertVersioned(ctx, userID+"/profile", version, bson.M{
+		"userId": userID, "type": "profile", "username": username, "avatarUrl": avatarURL,
+	})
+}
+
 func (s *Store) UpsertActivities(ctx context.Context, userID string, items []ActivityItem, version int64) error {
-	id := userID + "/activities"
-
-	result, err := s.col.UpdateOne(ctx,
-		bson.M{"_id": id, "version": bson.M{"$lt": version}},
-		bson.M{"$set": bson.M{
-			"userId":     userID,
-			"type":       "activities",
-			"activities": items,
-			"version":    version,
-			"updatedAt":  time.Now(),
-		}},
-		options.Update().SetUpsert(false),
-	)
-	if err != nil {
-		return err
+	if items == nil {
+		items = []ActivityItem{}
 	}
-
-	if result.MatchedCount == 0 {
-		_, err = s.col.UpdateOne(ctx,
-			bson.M{"_id": id, "version": bson.M{"$exists": false}},
-			bson.M{"$setOnInsert": bson.M{
-				"_id":        id,
-				"userId":     userID,
-				"type":       "activities",
-				"activities": items,
-				"version":    version,
-				"updatedAt":  time.Now(),
-			}},
-			options.Update().SetUpsert(true),
-		)
-	}
-
-	return err
+	return s.upsertVersioned(ctx, userID+"/activities", version, bson.M{
+		"userId": userID, "type": "activities", "activities": items,
+	})
 }
 
 func (s *Store) GetByType(ctx context.Context, userID, docType string) (*bson.M, error) {

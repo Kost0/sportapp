@@ -94,6 +94,8 @@ export function HeroCard({
           <View style={styles.actions}>
             {actionLabel && onAction && (
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={actionLabel}
                 style={styles.actionButton}
                 onPress={onAction}
               >
@@ -109,6 +111,8 @@ export function HeroCard({
             )}
             {secondaryAction && (
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={secondaryAction.label}
                 style={styles.secondaryButton}
                 onPress={secondaryAction.onPress}
               >

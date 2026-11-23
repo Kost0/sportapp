@@ -1,9 +1,13 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { postJson } from '@/lib/api/client';
+import { session } from './session';
+import { sessionUserId } from './session-user';
 
 type AuthState = {
   token: string | null;
+  userId: string | null;
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, username: string) => Promise<void>;
   logout: () => void;
@@ -26,13 +30,26 @@ type RegisterResp = {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const unsubscribe = session.subscribe(() => setToken(session.current?.accessToken ?? null));
+    void session.restore().finally(() => {
+      if (active) {
+        setToken(session.current?.accessToken ?? null);
+        setIsLoading(false);
+      }
+    });
+    return () => { active = false; unsubscribe(); };
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await postJson<{ email: string; password: string }, LoginResp>('/auth/login', {
       email,
       password,
     });
-    setToken(res.accessToken);
+    await session.set(res);
   }, []);
 
   const register = useCallback(async (email: string, password: string, username: string) => {
@@ -44,19 +61,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
       username,
     });
-    setToken(res.accessToken);
+    await session.set(res);
   }, []);
 
-  const logout = useCallback(() => setToken(null), []);
+  const logout = useCallback(() => {
+    const refreshToken = session.current?.refreshToken;
+    void session.clear().catch(() => {});
+    if (refreshToken) void postJson('/auth/logout', { refreshToken }).catch(() => {});
+  }, []);
 
   const value = useMemo<AuthState>(
     () => ({
       token,
+      userId: sessionUserId(token),
+      isLoading,
       login,
       register,
       logout,
     }),
-    [token, login, register, logout]
+    [token, isLoading, login, register, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
